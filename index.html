@@ -2119,6 +2119,30 @@ function firstUnplayedPuzzleIndex(){
   }
   return Math.max(0, PUZZLES.length - 1);
 }
+function nextIncompletePuzzleIndex(fromIdx){
+  // If localStorage is unavailable, fall back to simple forward-only behaviour
+  if(!hasLocalStorage()){
+    return (fromIdx < PUZZLES.length - 1) ? (fromIdx + 1) : -1;
+  }
+
+  const data = loadStatsStore();
+  const results = (data && data.results && typeof data.results === "object") ? data.results : {};
+
+  // 1) look forward from current
+  for(let i = fromIdx + 1; i < PUZZLES.length; i++){
+    if(!Object.prototype.hasOwnProperty.call(results, String(i))) return i;
+  }
+
+  // 2) wrap to the start and look up to (but not including) current
+  for(let i = 0; i < fromIdx; i++){
+    if(!Object.prototype.hasOwnProperty.call(results, String(i))) return i;
+  }
+
+  // none left
+  return -1;
+}
+
+  
 function applyStoredResultToCurrentPuzzle(){
   const saved = getResultForPuzzle(state.i);
   if(!saved) return false;
@@ -4681,9 +4705,28 @@ el.nextBtn.addEventListener('click', (e)=>{
 if(el.nextPuzzleBtn){
   el.nextPuzzleBtn.addEventListener('click', (e)=>{
     e.preventDefault();
-    el.nextBtn.click();
+    if(!state.finished) return;
+
+    const target = nextIncompletePuzzleIndex(state.i);
+    if(target < 0) return;
+
+    clearTransientOnAnyChange();
+    closeModal();
+
+    // save progress for the puzzle we’re leaving (also clears progress if finished)
+    saveInProgressForCurrentPuzzle();
+
+    state.i = target;
+    resetAllForPuzzle();
+
+    const hadResult = applyStoredResultToCurrentPuzzle();
+    if(!hadResult){
+      applyStoredProgressToCurrentPuzzle();
+    }
+    renderSmart();
   });
 }
+
 
 // Stats button wiring
 if(el.statsBtn){
@@ -4798,10 +4841,13 @@ function updateNavButtons(){
   // next is blocked until finished, and never loops past last
   setNavDisabled(el.nextBtn, nextDisabled);
 
-  // mirror next-state onto the big solved-state button
+  // big solved-state button goes to "next incomplete", so its disabled-state is different
   if(el.nextPuzzleBtn){
-    el.nextPuzzleBtn.disabled = nextDisabled;
-    el.nextPuzzleBtn.setAttribute('aria-disabled', nextDisabled ? 'true' : 'false');
+    const nextInc = nextIncompletePuzzleIndex(state.i);
+    const bigDisabled = (!state.finished || nextInc < 0);
+
+    el.nextPuzzleBtn.disabled = bigDisabled;
+    el.nextPuzzleBtn.setAttribute('aria-disabled', bigDisabled ? 'true' : 'false');
   }
 }
 
