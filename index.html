@@ -4269,7 +4269,32 @@ function pressKeyAction(kind, val){
     resetMainGridOnly();
   }
 }
+  // delete-hold repeat (shared across all keys, so it can’t “stick”)
+let kbDelTO = null;
+let kbDelIV = null;
+let kbDelGuardsInstalled = false;
+
+function stopKBDeleteHold(){
+  if(kbDelTO){ clearTimeout(kbDelTO); kbDelTO = null; }
+  if(kbDelIV){ clearInterval(kbDelIV); kbDelIV = null; }
+}
+
+function ensureKBDeleteGuards(){
+  if(kbDelGuardsInstalled) return;
+  kbDelGuardsInstalled = true;
+
+  // if iOS drops a pointerup, these still kill the repeat
+  window.addEventListener('blur', stopKBDeleteHold, {passive:true});
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) stopKBDeleteHold(); }, {passive:true});
+  window.addEventListener('pointerup', stopKBDeleteHold, true);
+  window.addEventListener('pointercancel', stopKBDeleteHold, true);
+  window.addEventListener('touchend', stopKBDeleteHold, true);
+  window.addEventListener('touchcancel', stopKBDeleteHold, true);
+}
+
 function makeKey(label, aria, cls, kind, val){
+  ensureKBDeleteGuards();
+
   const b = document.createElement('button');
   b.type = "button";
   b.className = `kbKey ${cls||""}`.trim();
@@ -4289,16 +4314,8 @@ function makeKey(label, aria, cls, kind, val){
     b.appendChild(img);
   }
 
-  // delete-hold repeat support (mobile)
-  let delTO = null;
-  let delIV = null;
-  const stopDel = ()=>{
-    if(delTO){ clearTimeout(delTO); delTO = null; }
-    if(delIV){ clearInterval(delIV); delIV = null; }
-  };
-
   const endHold = (e)=>{
-    stopDel();
+    stopKBDeleteHold();
     try{ b.releasePointerCapture && b.releasePointerCapture(e.pointerId); }catch(_){}
   };
 
@@ -4307,6 +4324,9 @@ function makeKey(label, aria, cls, kind, val){
     e.stopPropagation();
     if(b.classList.contains('is-disabled')) return;
 
+    // critical: ANY key tap cancels any “stuck” delete repeat
+    stopKBDeleteHold();
+
     // normal keys: unchanged
     if(kind !== 'delete'){
       pressKeyAction(kind, val);
@@ -4314,16 +4334,14 @@ function makeKey(label, aria, cls, kind, val){
     }
 
     // Delete: one immediately, then repeat while held
-    stopDel();
     try{ b.setPointerCapture && b.setPointerCapture(e.pointerId); }catch(_){}
-
     pressKeyAction(kind, val);
 
-    // short initial lag, then steady repeat
-    delTO = setTimeout(()=>{
-      delIV = setInterval(()=>{
+    // short initial lag, then steady repeat (your tuned values)
+    kbDelTO = setTimeout(()=>{
+      kbDelIV = setInterval(()=>{
         if(state.finished || state.modalOpen || b.classList.contains('is-disabled')){
-          stopDel();
+          stopKBDeleteHold();
           return;
         }
         pressKeyAction(kind, val);
@@ -4335,12 +4353,13 @@ function makeKey(label, aria, cls, kind, val){
     b.addEventListener('pointerup', endHold, {passive:true});
     b.addEventListener('pointercancel', endHold, {passive:true});
     b.addEventListener('pointerleave', endHold, {passive:true});
-    b.addEventListener('lostpointercapture', stopDel, {passive:true});
+    b.addEventListener('lostpointercapture', stopKBDeleteHold, {passive:true});
     b.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, {passive:false});
   }
 
   return b;
 }
+
 
 function buildKeyboard(){
   el.kbHost.innerHTML = "";
