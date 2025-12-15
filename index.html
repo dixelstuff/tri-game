@@ -1715,7 +1715,76 @@ function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
 function norm(s){ return String(s||"").toLowerCase().replace(/[^a-z]/g,""); }
 function isAlpha(ch){ return /^[a-z]$/i.test(ch); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* =======================
+   Feedback: sound + haptics
+   ======================= */
+let _fxCtx = null;
 
+function fxCtx(){
+  if(_fxCtx) return _fxCtx;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return null;
+  _fxCtx = new AC();
+  return _fxCtx;
+}
+function fxResume(){
+  const ctx = fxCtx();
+  if(ctx && ctx.state === 'suspended'){
+    ctx.resume().catch(()=>{});
+  }
+  return ctx;
+}
+function fxTone(freq, ms, type='sine', when=0, gain=0.06){
+  const ctx = fxResume();
+  if(!ctx) return;
+
+  const t0 = ctx.currentTime + (when || 0);
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t0);
+
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + (ms/1000));
+
+  o.connect(g);
+  g.connect(ctx.destination);
+
+  o.start(t0);
+  o.stop(t0 + (ms/1000) + 0.02);
+}
+
+function fxFail(){
+  fxResume();
+  // Short “buzz” (two low square tones)
+  fxTone(165, 70, 'square', 0.00, 0.045);
+  fxTone(110, 90, 'square', 0.08, 0.045);
+}
+function fxWin(){
+  fxResume();
+  // Quick 3-note chime
+  fxTone(523.25, 90,  'sine', 0.00, 0.06);
+  fxTone(659.25, 90,  'sine', 0.10, 0.06);
+  fxTone(783.99, 120, 'sine', 0.20, 0.06);
+}
+
+function fxVibrate(pattern){
+  try{
+    if(navigator.vibrate) navigator.vibrate(pattern);
+  }catch(_){}
+}
+function fxOnWrongCheck(){
+  fxVibrate([25,30,25]);
+  fxFail();
+}
+function fxOnSolved(){
+  fxVibrate([12,18,12,60,20]);
+  fxWin();
+}
+
+  
 function ensurePuzzleDerived(p){
   if(!p || p._derived) return;
 
@@ -3217,6 +3286,7 @@ function onCheck(){
   if(attempt === ans){
     const res = computeFinalSkill(false);
     setResultSkillMsg(`Correct - ${hintPhraseText(state.hintCount)}!`, res.skill);
+    fxOnSolved();
     state.finished = true;
     state.gaveUp = false;
     storeResultForCurrentPuzzle(res.skill, false);
@@ -3224,9 +3294,12 @@ function onCheck(){
     return;
   }
 
+
   // Wrong answer
   state.wrongCheckCount = (state.wrongCheckCount || 0) + 1;
+  fxOnWrongCheck();
   shakeGrid();
+
 
   // === Minimal feedback (Classic) still gets trigram-use messages ===
   if(flags().checkFeedback === "minimal"){
