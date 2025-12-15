@@ -948,6 +948,10 @@
     font-size:18px;
     color:var(--ink);
     cursor:pointer;
+        -webkit-touch-callout:none;
+    -webkit-user-select:none;
+    user-select:none;
+
   }
   .kbKey:active{ transform:translateY(1px); }
 
@@ -2401,12 +2405,46 @@ function shakeGrid(){
   el.gridDock.classList.add('shake');
   setTimeout(()=> el.gridDock.classList.remove('shake'), 420);
 }
+function clearIOSSelection(){
+  const sel = window.getSelection && window.getSelection();
+  if(!sel) return;
+  try{ sel.removeAllRanges(); }catch(_){}
+}
+function selectionWithinApp(){
+  const sel = window.getSelection && window.getSelection();
+  if(!sel || sel.rangeCount === 0) return false;
+
+  let n = sel.anchorNode;
+  if(!n) return false;
+  if(n.nodeType === 3) n = n.parentNode; // text node -> element
+  if(!n || !n.closest) return false;
+
+  return !!n.closest('#clue, #gridDock, #gridWrap, #hintTrack, #skillDock, #btnRow, #kbHost, #hintsModal');
+}
+
+// Block Safari long-press callouts inside the app
 document.addEventListener('contextmenu', (e)=>{
   const t = e.target;
   if(t && t.closest && t.closest('#clue, #gridDock, #gridWrap, #hintTrack, #skillDock, #btnRow, #kbHost, #hintsModal')){
     e.preventDefault();
+    clearIOSSelection();
   }
+}, {capture:true});
+
+// Block selection starting (this is what triggers the loupe/callout)
+document.addEventListener('selectstart', (e)=>{
+  const t = e.target;
+  if(t && t.closest && t.closest('#clue, #gridDock, #gridWrap, #hintTrack, #skillDock, #btnRow, #kbHost, #hintsModal')){
+    e.preventDefault();
+    clearIOSSelection();
+  }
+}, {capture:true});
+
+// If Safari still creates a selection range, nuke it immediately
+document.addEventListener('selectionchange', ()=>{
+  if(selectionWithinApp()) clearIOSSelection();
 });
+
 
 /* =======================
    Enhanced toggle (no persistence)
