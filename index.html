@@ -659,6 +659,46 @@
     transition-delay:.06s;
   }
 
+  .nextPuzzleBtn{
+    position:absolute;
+    left:50%;
+    top:40%;
+    --next-y: calc(var(--badge-drop) + 66px);
+    transform:translate(-50%,-50%) translateY(var(--next-y));
+    opacity:0;
+    pointer-events:none;
+    border:4px solid var(--ink);
+    border-radius:999px;
+    padding:9px 16px;
+    min-width:190px;
+    font-size:16px;
+    font-weight:900;
+    color:var(--ink);
+    background:rgba(255,255,255,.35);
+    cursor:pointer;
+    text-transform:uppercase;
+    letter-spacing:.12em;
+    appearance:none;
+    -webkit-appearance:none;
+    box-shadow:0 7px 0 rgba(0,0,0,.16);
+    transition:opacity .35s ease, transform .35s ease;
+  }
+  .nextPuzzleBtn:active{
+    transform:translate(-50%,-50%) translateY(calc(var(--next-y) + 1px));
+    box-shadow:0 6px 0 rgba(0,0,0,.16);
+  }
+  .wrap.solved .nextPuzzleBtn{
+    opacity:1;
+    pointer-events:auto;
+    transition-delay:.10s;
+  }
+  .nextPuzzleBtn:disabled{
+    opacity:.35;
+    cursor:default;
+    pointer-events:none;
+  }
+
+
   .skillBadgeInner{
     position:relative;
     overflow:hidden;
@@ -862,7 +902,14 @@
     -webkit-backdrop-filter:blur(10px);
     border-top:2px solid rgba(0,0,0,.14);
   }
-  html.has-kb :is(.kbHost,#kbHost){ display:block; }
+    html.has-kb :is(.kbHost,#kbHost){ display:block; }
+
+  /* hide custom keyboard once the answer is revealed */
+  #wrap.solved ~ :is(.kbHost,#kbHost),
+  #wrap.gaveup ~ :is(.kbHost,#kbHost){
+    display:none !important;
+  }
+
 
   .kb{
     max-width:560px;
@@ -1314,7 +1361,7 @@
     <div class="msg" id="msg"></div>
   </div>
 
-  <!-- Skill badge lives in the OLD hint-track slot -->
+<!-- Skill badge  -->
   <div class="skillDock" id="skillDock" aria-label="Skill badge">
     <div class="skillBadge" id="skillBadge" aria-hidden="true">
       <div class="skillBadgeInner">
@@ -1322,7 +1369,10 @@
         <div class="skillBadgeValue" id="skillBadgeValue">—</div>
       </div>
     </div>
+
+    <button class="nextPuzzleBtn" id="nextPuzzleBtn" type="button" aria-label="Next puzzle">NEXT PUZZLE</button>
   </div>
+
   <!-- bottom hint-track dock (we move #hintTrack here when there’s room) -->
   <div class="hintDockBottom" id="hintDockBottom"></div>
 
@@ -1514,6 +1564,7 @@ const el = {
   btnRow: document.getElementById('btnRow'),
   prevBtn: document.getElementById('prevBtn'),
   nextBtn: document.getElementById('nextBtn'),
+  nextPuzzleBtn: document.getElementById('nextPuzzleBtn'),
   count: document.getElementById('count'),
   kbHost: document.getElementById('kbHost'),
   hintsModal: document.getElementById('hintsModal'),
@@ -4615,6 +4666,12 @@ el.nextBtn.addEventListener('click', (e)=>{
   renderSmart();
 });
 
+if(el.nextPuzzleBtn){
+  el.nextPuzzleBtn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    el.nextBtn.click();
+  });
+}
 
 // Stats button wiring
 if(el.statsBtn){
@@ -4721,12 +4778,21 @@ function updateNavButtons(){
   const atFirst = (state.i <= 0);
   const atLast  = (state.i >= PUZZLES.length - 1);
 
+  const nextDisabled = (atLast || !state.finished);
+
   // prev never loops
   setNavDisabled(el.prevBtn, atFirst);
 
   // next is blocked until finished, and never loops past last
-  setNavDisabled(el.nextBtn, atLast || !state.finished);
+  setNavDisabled(el.nextBtn, nextDisabled);
+
+  // mirror next-state onto the big solved-state button
+  if(el.nextPuzzleBtn){
+    el.nextPuzzleBtn.disabled = nextDisabled;
+    el.nextPuzzleBtn.setAttribute('aria-disabled', nextDisabled ? 'true' : 'false');
+  }
 }
+
 
 function render(stealFocus=true){
   const p = current();
