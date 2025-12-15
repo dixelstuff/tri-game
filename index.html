@@ -4647,7 +4647,10 @@ el.prevBtn.addEventListener('click', (e)=>{
   // Only allow navigation after answer revealed
   if(!state.finished) return;
 
+  clearTransientOnAnyChange();
   closeModal();
+
+  // save progress for the puzzle we’re leaving
   saveInProgressForCurrentPuzzle();
 
   // No looping: stop at puzzle 1
@@ -4655,7 +4658,11 @@ el.prevBtn.addEventListener('click', (e)=>{
 
   state.i = state.i - 1;
   resetAllForPuzzle();
-  applyStoredResultToCurrentPuzzle();
+
+  const hadResult = applyStoredResultToCurrentPuzzle();
+  if(!hadResult) applyStoredProgressToCurrentPuzzle();
+
+  renderSmart();
 });
 
 el.nextBtn.addEventListener('click', (e)=>{
@@ -4664,7 +4671,10 @@ el.nextBtn.addEventListener('click', (e)=>{
   // Only allow navigation after answer revealed
   if(!state.finished) return;
 
+  clearTransientOnAnyChange();
   closeModal();
+
+  // save progress for the puzzle we’re leaving
   saveInProgressForCurrentPuzzle();
 
   // No looping: stop at last puzzle
@@ -4672,8 +4682,13 @@ el.nextBtn.addEventListener('click', (e)=>{
 
   state.i = state.i + 1;
   resetAllForPuzzle();
-  applyStoredResultToCurrentPuzzle();
+
+  const hadResult = applyStoredResultToCurrentPuzzle();
+  if(!hadResult) applyStoredProgressToCurrentPuzzle();
+
+  renderSmart();
 });
+
 
 
 // Stats button wiring
