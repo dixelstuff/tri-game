@@ -168,6 +168,12 @@
     font:inherit;
   }
   .nav :is(a,button):active{ transform:translateY(1px); }
+    .nav a.is-disabled{
+    opacity:.35;
+    pointer-events:none;
+    cursor:default;
+  }
+
 
 
 .nav .navCaret{
@@ -4570,13 +4576,15 @@ bindFastTap(el.checkBtn, onCheck);
 
 el.prevBtn.addEventListener('click', (e)=>{
   e.preventDefault();
+  if(state.i <= 0) return;
+
   clearTransientOnAnyChange();
   closeModal();
 
   // save progress for the puzzle we’re leaving
   saveInProgressForCurrentPuzzle();
 
-  state.i = (state.i - 1 + PUZZLES.length) % PUZZLES.length;
+  state.i = state.i - 1;
   resetAllForPuzzle();
 
   const hadResult = applyStoredResultToCurrentPuzzle();
@@ -4588,13 +4596,16 @@ el.prevBtn.addEventListener('click', (e)=>{
 
 el.nextBtn.addEventListener('click', (e)=>{
   e.preventDefault();
+  if(!state.finished) return;
+  if(state.i >= PUZZLES.length - 1) return;
+
   clearTransientOnAnyChange();
   closeModal();
 
   // save progress for the puzzle we’re leaving
   saveInProgressForCurrentPuzzle();
 
-  state.i = (state.i + 1) % PUZZLES.length;
+  state.i = state.i + 1;
   resetAllForPuzzle();
 
   const hadResult = applyStoredResultToCurrentPuzzle();
@@ -4603,6 +4614,7 @@ el.nextBtn.addEventListener('click', (e)=>{
   }
   renderSmart();
 });
+
 
 // Stats button wiring
 if(el.statsBtn){
@@ -4696,10 +4708,32 @@ document.addEventListener('keydown', (e)=>{
 /* =======================
    Render
    ======================= */
+
+  function setNavDisabled(node, disabled){
+  if(!node) return;
+  node.classList.toggle('is-disabled', !!disabled);
+  node.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+  if(disabled) node.setAttribute('tabindex','-1');
+  else node.removeAttribute('tabindex');
+}
+
+function updateNavButtons(){
+  const atFirst = (state.i <= 0);
+  const atLast  = (state.i >= PUZZLES.length - 1);
+
+  // prev never loops
+  setNavDisabled(el.prevBtn, atFirst);
+
+  // next is blocked until finished, and never loops past last
+  setNavDisabled(el.nextBtn, atLast || !state.finished);
+}
+
 function render(stealFocus=true){
   const p = current();
   const n = getN();
   el.count.textContent = `${state.i + 1} of ${PUZZLES.length}`;
+    updateNavButtons();
+
 
   el.wrap.classList.toggle('solved', state.finished);
   el.wrap.classList.toggle('gaveup', state.gaveUp);
