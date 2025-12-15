@@ -4289,15 +4289,59 @@ function makeKey(label, aria, cls, kind, val){
     b.appendChild(img);
   }
 
+  // delete-hold repeat support (mobile)
+  let delTO = null;
+  let delIV = null;
+  const stopDel = ()=>{
+    if(delTO){ clearTimeout(delTO); delTO = null; }
+    if(delIV){ clearInterval(delIV); delIV = null; }
+  };
+
+  const endHold = (e)=>{
+    stopDel();
+    try{ b.releasePointerCapture && b.releasePointerCapture(e.pointerId); }catch(_){}
+  };
+
   b.addEventListener('pointerdown', (e)=>{
     e.preventDefault();
     e.stopPropagation();
     if(b.classList.contains('is-disabled')) return;
+
+    // normal keys: unchanged
+    if(kind !== 'delete'){
+      pressKeyAction(kind, val);
+      return;
+    }
+
+    // Delete: one immediately, then repeat while held
+    stopDel();
+    try{ b.setPointerCapture && b.setPointerCapture(e.pointerId); }catch(_){}
+
     pressKeyAction(kind, val);
+
+    // short initial lag, then steady repeat
+    delTO = setTimeout(()=>{
+      delIV = setInterval(()=>{
+        if(state.finished || state.modalOpen || b.classList.contains('is-disabled')){
+          stopDel();
+          return;
+        }
+        pressKeyAction(kind, val);
+      }, 55);
+    }, 260);
   }, {passive:false});
+
+  if(kind === 'delete'){
+    b.addEventListener('pointerup', endHold, {passive:true});
+    b.addEventListener('pointercancel', endHold, {passive:true});
+    b.addEventListener('pointerleave', endHold, {passive:true});
+    b.addEventListener('lostpointercapture', stopDel, {passive:true});
+    b.addEventListener('contextmenu', (e)=>{ e.preventDefault(); }, {passive:false});
+  }
 
   return b;
 }
+
 function buildKeyboard(){
   el.kbHost.innerHTML = "";
   if(!state.useCustomKB) return;
