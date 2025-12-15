@@ -1023,16 +1023,16 @@
   }
 
 
-  .modalHdr,
-  .statsHdr{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    border-bottom:1px solid rgba(0,0,0,.08);
-    gap:10px;
-  }
-  .modalHdr{ padding:14px 14px 12px; }
-  .statsHdr{ padding:14px 14px 10px; }
+:is(.modalHdr,.statsHdr){
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  border-bottom:1px solid rgba(0,0,0,.08);
+  gap:10px;
+}
+.modalHdr{ padding:14px 14px 12px; }
+.statsHdr{ padding:14px 14px 10px; }
+
 
   .modalTitle,
   .statsTitle{
@@ -1063,20 +1063,14 @@
   }
   :is(.modalX,.statsX):active{ transform:translateY(1px); }
 
-  .modalBody{
-    padding:12px 14px 14px;
-    flex:1 1 auto;
-    min-height:0;
-    overflow:auto;   /* scroll inside modal once tall */
-  }
+:is(.modalBody,.statsBody){
+  padding:12px 14px 14px;
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+}
+.statsBody{ font-size:14px; }
 
-  .statsBody{
-    padding:12px 14px 14px;
-    flex:1 1 auto;
-    min-height:0;
-    overflow:auto;   /* stats content scrolls within card */
-    font-size:14px;
-  }
 
 
   .statsIntro{ margin-bottom:10px; font-size:13px; opacity:.8; }
