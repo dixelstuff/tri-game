@@ -1775,14 +1775,20 @@ function startMax(){ return current()._startMax; }
 function renderSmart(){
   render(!state.useCustomKB);
 
-  // If any hints have been used and the puzzle isn't finished,
-  // persist current state (hints + grid letters + mode + focus).
-  if((state.hintsUsed.w1 || state.hintsUsed.w2 || state.hintsUsed.extras) && !state.finished){
-    saveInProgressForCurrentPuzzle();
+  // Persist in-progress state 
+  if(!state.finished && !state.drag){
+    const meaningful =
+      !!state.assist ||
+      !!(state.hintsUsed && (state.hintsUsed.w1 || state.hintsUsed.w2 || state.hintsUsed.extras)) ||
+      !!(state.placed && (state.placed.w1 || state.placed.w2)) ||
+      !!(state.singles && state.singles.length);
+
+    if(meaningful) saveInProgressForCurrentPuzzle();
   }
 
   requestAnimationFrame(updateHintTrackPlacement);
 }
+
 
 
 /* =======================
@@ -2468,11 +2474,21 @@ function setEnhanced(on, renderNow=true, source='auto'){
   state.assist = next;
   updateModePill();
 
-  if(next) state.assistLocked = true;
-  if(!next) abortDrag();
+  if(next){
+    state.assistLocked = true;
+
+    // Persist immediately so a refresh can't revert back to Classic.
+    // (Also captures "assist engaged" even before any hints/letters.)
+    saveInProgressForCurrentPuzzle();
+  }else{
+    abortDrag();
+    // If reset turns assist off, allow progress to be cleared if nothing else is saved.
+    saveInProgressForCurrentPuzzle();
+  }
 
   if(renderNow) renderSmart();
 }
+
 function resetEnhancedForNewPuzzle(){
   state.assist = false;
   state.assistLocked = false;
@@ -4652,9 +4668,13 @@ function resetMainGridOnly(){
   state.singles = [];
   state.focusIdx = 0;
 
+  // Persist (or clear) progress immediately for this puzzle
+  saveInProgressForCurrentPuzzle();
+
   renderSmart();
   if(!state.useCustomKB) requestAnimationFrame(()=> focusCell(0));
 }
+
 
 /* =======================
    Render grid
