@@ -1666,7 +1666,14 @@ const state = {
   // hint fly
   pendingFly: null,
   flyAttempts: 0,
+
+  // Classic-only: show grid colours only while press-holding a trigram
+  classicHoldColors: false,
+  classicHoldPending: false,
+  classicHoldPointerId: null,
+  classicHoldTO: null,
 };
+
 
 /* =======================
    Flags (prebuilt objects; avoids realloc each call)
@@ -3329,12 +3336,66 @@ function onCheck(){
    Give up
    ======================= */
 function extrasUnlocked(){ return state.hintsUsed.w1 && state.hintsUsed.w2; }
+/* =======================
+   Classic mode: keep grid white unless press-holding a trigram
+   ======================= */
+function clearClassicHoldTimer(){
+  if(state.classicHoldTO){ clearTimeout(state.classicHoldTO); state.classicHoldTO = null; }
+}
+
+function startClassicHold(pointerId){
+  if(state.assist) return; // Classic-only
+
+  state.classicHoldPending = true;
+  state.classicHoldPointerId = pointerId;
+  clearClassicHoldTimer();
+
+  // Delay prevents a quick click/tap from “flashing” the colours
+  state.classicHoldTO = setTimeout(()=>{
+    state.classicHoldTO = null;
+    if(state.assist) return;
+    if(!state.classicHoldPending) return;
+
+    if(!state.classicHoldColors){
+      state.classicHoldColors = true;
+      renderSmart();
+    }
+  }, 140);
+}
+
+function endClassicHold(pointerId){
+  // Ignore unrelated pointers (multi-touch / stray events)
+  if(state.classicHoldPointerId != null && pointerId != null && pointerId !== state.classicHoldPointerId) return;
+
+  const had = !!state.classicHoldColors;
+
+  state.classicHoldPending = false;
+  state.classicHoldPointerId = null;
+  clearClassicHoldTimer();
+  state.classicHoldColors = false;
+
+  // If dragging, let onDragEnd() do the repaint once.
+  if(had && !state.assist && !state.drag) renderSmart();
+}
+
 function abortDrag(){
-  if(!state.drag) return;
-  try{ state.drag.ghost?.remove(); }catch{}
-  state.drag = null;
+  if(state.drag){
+    try{ state.drag.ghost?.remove(); }catch{}
+    state.drag = null;
+  }
+
+  // Also clear Classic hold-colour state (purely visual)
+  clearClassicHoldTimer();
+  state.classicHoldPending = false;
+  state.classicHoldPointerId = null;
+  state.classicHoldColors = false;
 }
 window.addEventListener('blur', ()=> abortDrag());
+
+// Classic: colours should disappear immediately when the press ends anywhere
+window.addEventListener('pointerup', (e)=> endClassicHold(e.pointerId), true);
+window.addEventListener('pointercancel', (e)=> endClassicHold(e.pointerId), true);
+
 
 function revealAnswerGiveUp(){
   if(state.finished) return;
@@ -3651,7 +3712,16 @@ function beginDragWithThreshold(e, startFn){
   window.addEventListener('pointercancel', onCancel, {once:true});
 }
 function startDragTrigram(ev, group, tri, idx0, start0){
+  // Classic mode: reveal colours while holding/dragging a trigram (no flash delay)
+  if(!state.assist){
+    clearClassicHoldTimer();
+    state.classicHoldPending = true;
+    state.classicHoldPointerId = ev.pointerId;
+    state.classicHoldColors = true;
+  }
+
   const isRed = trigramIsRedAtStart(start0);
+
   const bg = isRed ? "var(--bad)" : (group === 'w1' ? "var(--w1)" : "var(--w2)");
 
   const ghost = makeGhostBox(tri, bg);
@@ -4544,7 +4614,9 @@ function renderGrid(stealFocus=true){
   // single recompute pass used by BOTH grid colouring + clue underline + status messages
   recomputeInvalids();
 
-  const overlapSet = (!revealed && f.showGridColors) ? computeOverlapIdxSet() : new Set();
+  const showColorsNow = (!revealed && f.showGridColors && (state.assist || state.classicHoldColors));
+  const overlapSet = showColorsNow ? computeOverlapIdxSet() : new Set();
+
 
   el.grid.style.setProperty('--n', String(n));
   el.grid.innerHTML = "";
@@ -4560,13 +4632,14 @@ function renderGrid(stealFocus=true){
 
     const tri = trigramAtIndex(i);
 
-    if(!revealed && f.showGridColors && tri){
+    if(!revealed && showColorsNow && tri){
       if(overlapSet.has(i)) cell.classList.add('bg-ol');
       else cell.classList.add(tri.group==='w1' ? 'bg-w1' : 'bg-w2');
     }
-    if(!revealed && f.showBadCellColor && (state.ol2Set.has(i) || state.badSet.has(i) || state.twoSet.has(i) || state.exclSet.has(i))){
+    if(!revealed && showColorsNow && f.showBadCellColor && (state.ol2Set.has(i) || state.badSet.has(i) || state.twoSet.has(i) || state.exclSet.has(i))){
       cell.classList.add('bg-bad');
     }
+
     if(!revealed && f.allowDragTrigrams && tri){
       cell.classList.add('grabbable');
     }
@@ -4640,7 +4713,6 @@ function renderGrid(stealFocus=true){
         renderSmart();
       });
     }
-
     cell.addEventListener('pointerdown', (e)=>{
       if(revealed) return;
       if(state.modalOpen) return;
@@ -4648,16 +4720,21 @@ function renderGrid(stealFocus=true){
       state.focusIdx = i;
       if(!state.useCustomKB) requestAnimationFrame(()=> focusCell(i));
 
-      if(f.allowDragTrigrams){
-        const t = trigramAtIndex(i);
-        if(t){
-          clearTransientOnAnyChange();
-          beginDragWithThreshold(e, (ev)=>startDragTrigram(ev, t.group, t.tri, i, t.start));
-        }
+      const t = trigramAtIndex(i);
+
+      // Classic: keep grid white unless press-holding a trigram
+      if(!state.assist && t){
+        startClassicHold(e.pointerId);
+      }
+
+      if(f.allowDragTrigrams && t){
+        clearTransientOnAnyChange();
+        beginDragWithThreshold(e, (ev)=>startDragTrigram(ev, t.group, t.tri, i, t.start));
       }
 
       renderSmart();
     });
+
 
     cell.appendChild(input);
     el.grid.appendChild(cell);
