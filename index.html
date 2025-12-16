@@ -2722,6 +2722,83 @@ function gridHasExactTrigram(tri){
   }
   return false;
 }
+  function typedTrigramAtStart(s){
+  const n = getN();
+  if(s < 0 || s > n - TR) return null;
+
+  // must be pure singles (not inside an already-placed trigram)
+  if(trigramAtIndex(s) || trigramAtIndex(s+1) || trigramAtIndex(s+2)) return null;
+
+  const a = cellChar(s), b = cellChar(s+1), c = cellChar(s+2);
+  if(!a || !b || !c) return null;
+
+  const tri = (a + b + c).toLowerCase();
+  const p = current();
+
+  const in1 = !!(p._allowed && p._allowed.w1 && p._allowed.w1.has(tri));
+  const in2 = !!(p._allowed && p._allowed.w2 && p._allowed.w2.has(tri));
+  if(!in1 && !in2) return null;
+
+  return { start:s, tri, in1, in2 };
+}
+
+function hasTypedTrigramCoveringCell(i){
+  for(let s = i - (TR - 1); s <= i; s++){
+    if(typedTrigramAtStart(s)) return true;
+  }
+  return false;
+}
+
+function buildColorSetsForReveal(includeTyped){
+  const w1Cells = new Set();
+  const w2Cells = new Set();
+  const overlap = new Set();
+
+  const spansW1 = [];
+  const spansW2 = [];
+
+  const pl1 = state.placed && state.placed.w1;
+  const pl2 = state.placed && state.placed.w2;
+
+  if(pl1 && typeof pl1.start === "number" && pl1.tri){
+    spansW1.push({ start: pl1.start, tri: pl1.tri });
+    for(const k of trigramCells(pl1.start)) w1Cells.add(k);
+  }
+  if(pl2 && typeof pl2.start === "number" && pl2.tri){
+    spansW2.push({ start: pl2.start, tri: pl2.tri });
+    for(const k of trigramCells(pl2.start)) w2Cells.add(k);
+  }
+
+  if(includeTyped){
+    const n = getN();
+    for(let s = 0; s <= n - TR; s++){
+      const hit = typedTrigramAtStart(s);
+      if(!hit) continue;
+
+      if(hit.in1){
+        spansW1.push({ start: hit.start, tri: hit.tri });
+        for(const k of trigramCells(hit.start)) w1Cells.add(k);
+      }
+      if(hit.in2){
+        spansW2.push({ start: hit.start, tri: hit.tri });
+        for(const k of trigramCells(hit.start)) w2Cells.add(k);
+      }
+    }
+  }
+
+  // overlap (only 1-letter overlaps that actually match)
+  for(const a of spansW1){
+    for(const b of spansW2){
+      if(overlapCount(a.start, b.start) !== 1) continue;
+      if(!overlapIsValid(a.start, a.tri, b.start, b.tri)) continue;
+      const common = overlapMatchIdx(a.start, b.start);
+      if(common != null) overlap.add(common);
+    }
+  }
+
+  return { w1Cells, w2Cells, overlap };
+}
+
 function updateExtrasHintFade(){
   const row = document.getElementById('trackBox-extras');
   if(!row) return;
@@ -4580,7 +4657,20 @@ function renderGrid(stealFocus=true){
 
   const showColorsNow = (!revealed) && (f.showGridColors || state.revealGrid);
   const showBadNow    = (!revealed) && (f.showBadCellColor || state.revealGrid);
-  const overlapSet    = (showColorsNow) ? computeOverlapIdxSet() : new Set();
+
+  // In Assisted we only colour "placed" trigrams.
+  // In Classic (white grid), holding reveals BOTH placed + typed trigrams.
+  let colorW1 = new Set();
+  let colorW2 = new Set();
+  let overlapSet = new Set();
+  if(showColorsNow){
+    const includeTyped = (!f.showGridColors && !!state.revealGrid);
+    const sets = buildColorSetsForReveal(includeTyped);
+    colorW1 = sets.w1Cells;
+    colorW2 = sets.w2Cells;
+    overlapSet = sets.overlap;
+  }
+
 
 
   el.grid.style.setProperty('--n', String(n));
@@ -4597,10 +4687,22 @@ function renderGrid(stealFocus=true){
 
     const tri = trigramAtIndex(i);
 
-    if(!revealed && showColorsNow && tri){
-      if(overlapSet.has(i)) cell.classList.add('bg-ol');
-      else cell.classList.add(tri.group==='w1' ? 'bg-w1' : 'bg-w2');
+    if(!revealed && showColorsNow){
+      if(overlapSet.has(i)){
+        cell.classList.add('bg-ol');
+      }else if(tri){
+        cell.classList.add(tri.group==='w1' ? 'bg-w1' : 'bg-w2');
+      }else{
+        const in1 = colorW1.has(i);
+        const in2 = colorW2.has(i);
+        if(in1 || in2){
+          if(in1 && !in2) cell.classList.add('bg-w1');
+          else if(in2 && !in1) cell.classList.add('bg-w2');
+          else cell.classList.add('bg-w1'); // tie-break if both
+        }
+      }
     }
+
     if(!revealed && showBadNow && (state.ol2Set.has(i) || state.badSet.has(i) || state.twoSet.has(i) || state.exclSet.has(i))){
       cell.classList.add('bg-bad');
     }
@@ -4688,10 +4790,11 @@ function renderGrid(stealFocus=true){
 
       const t = trigramAtIndex(i);
 
-      // Classic mode: grid stays white unless you're actively holding a trigram.
-      if(!state.assist && t){
+      // Classic mode: grid stays white unless you're actively holding a trigram (placed OR typed).
+      if(!state.assist && (t || hasTypedTrigramCoveringCell(i))){
         beginClassicHoldReveal();
       }
+
 
       if(f.allowDragTrigrams && t){
         clearTransientOnAnyChange();
