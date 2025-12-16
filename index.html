@@ -1686,16 +1686,18 @@ const FLAGS_ASSISTED = {
 const FLAGS_CLASSIC = {
   allowClueTapPlace: false,
   allowClueTapCycle: false,
-  allowHintTapPlace: false,
-  allowHint3TapInsert: false,
-  allowDragTrigrams: false,
-  allowAutoPromote: false,
-  showGridColors: false,
+  allowHintTapPlace: true,
+  allowHint3TapInsert: true,
+  allowDragTrigrams: true,
+  allowAutoPromote: true,
+  showGridColors: true,
   showStatusMessages: true,
-  showBadCellColor: false,
+  showBadCellColor: true,
   checkFeedback: "minimal",
 };
 function flags(){ return state.assist ? FLAGS_ASSISTED : FLAGS_CLASSIC; }
+
+
 
 
 /* =======================
@@ -4074,7 +4076,8 @@ function renderHintTrack(){
     el.trackW1.appendChild(
       makeTrigramBlock(p.tri1, "sel-w1", "word 1 trigram", ()=>{
         if(state.finished || state.modalOpen) return;
-        if(!state.assist) return;
+        if(!flags().allowHintTapPlace) return;
+
         // Avoid auto-discovering the 1-letter overlap when tapping the hint minigrid
         placeTrigram('w1', p.tri1, { avoidOverlap:true });
         renderSmart();
@@ -4094,7 +4097,8 @@ function renderHintTrack(){
     el.trackW2.appendChild(
       makeTrigramBlock(p.tri2, "sel-w2", "word 2 trigram", ()=>{
         if(state.finished || state.modalOpen) return;
-        if(!state.assist) return;
+                if(!flags().allowHintTapPlace) return;
+
         // Same “no overlap” rule for word-2 hint taps
         placeTrigram('w2', p.tri2, { avoidOverlap:true });
         renderSmart();
@@ -4132,7 +4136,8 @@ function renderHintTrack(){
       bindTapReliable(d, ()=>{
         if(state.finished || state.modalOpen) return;
         clearTransientOnAnyChange();
-        if(!state.assist) return;
+        if(!flags().allowHint3TapInsert) return;
+
 
         const n = getN();
         for(let i=0;i<n;i++){
