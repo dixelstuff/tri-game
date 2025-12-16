@@ -3795,12 +3795,13 @@ function armClassicHoldDrag(e, idx){
    Drag ghost + drag logic
    ======================= */
 function trigramIsRedAtStart(start){
-  recomputeInvalids();
+  // NOTE: invalid sets are already computed in renderGrid() via recomputeInvalids()
   for(const idx of trigramCells(start)){
     if(state.ol2Set.has(idx) || state.badSet.has(idx) || state.twoSet.has(idx) || state.exclSet.has(idx)) return true;
   }
   return false;
 }
+
 function makeGhostBox(text, bg){
   const ghost = document.createElement('div');
   ghost.className = "ghost";
