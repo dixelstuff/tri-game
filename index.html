@@ -1626,11 +1626,12 @@ const state = {
   focusIdx: 0,
 
   drag: null,
-  classicHold: false,
-  classicHoldBackup: null,
-  classicHoldIntroduced: null,
-  
+
+  // Classic mode: keep grid white until you press-and-hold a trigram
+  revealGrid: false,
+
   msgTimer: null,
+
   msgTransient: false,
   msgTransientEndsAt: 0,
   lockMsg: false,
@@ -1689,28 +1690,22 @@ const FLAGS_CLASSIC = {
 const FLAGS_ELITE = {
   allowClueTapPlace: false,
   allowClueTapCycle: false,
-  allowHintTapPlace: false,
-  allowHint3TapInsert: false,
-  allowDragTrigrams: false,
+
+  allowHintTapPlace: true,
+  allowHint3TapInsert: true,
+
+  allowDragTrigrams: true,
+
   allowAutoPromote: false,
+
+  // Classic stays white by default; colours only appear while held/dragging
   showGridColors: false,
   showStatusMessages: true,
   showBadCellColor: false,
   checkFeedback: "minimal",
 };
 
-// Classic (unassisted) long-press overlay: ONLY grid colours + drag
-const FLAGS_CLASSIC_HOLD = Object.assign({}, FLAGS_ELITE, {
-  allowDragTrigrams: true,
-  showGridColors: true,
-  showBadCellColor: true,
-});
-
-function flags(){
-  if(!state.assist && state.classicHold) return FLAGS_CLASSIC_HOLD;
-  return state.assist ? FLAGS_CLASSIC : FLAGS_ELITE;
-}
-
+function flags(){ return state.assist ? FLAGS_CLASSIC : FLAGS_ELITE; }
 
 /* =======================
    Mode pill (Classic vs Assisted)
@@ -1806,12 +1801,10 @@ function _visibleOnShow(){
   if(_visibleStartTs == null) _visibleStartTs = performance.now();
 }
 document.addEventListener('visibilitychange', ()=>{
-if(document.hidden){
-  _visibleOnHide();
-  abortDrag();
-  if(state.classicHold) endClassicHold();
-}else{
-
+  if(document.hidden){
+    _visibleOnHide();
+    abortDrag();
+  }else{
     _visibleOnShow();
   }
 }, { passive:true });
@@ -3341,17 +3334,37 @@ function onCheck(){
 /* =======================
    Give up
    ======================= */
-function extrasUnlocked(){ return state.hintsUsed.w1 && state.hintsUsed.w2; }
 function abortDrag(){
-  if(!state.drag) return;
-  try{ state.drag.ghost?.remove(); }catch{}
-  state.drag = null;
+  if(state.drag){
+    try{ state.drag.ghost?.remove(); }catch{}
+    state.drag = null;
+  }
+  // If Classic was temporarily revealing colours, kill that too.
+  if(!state.assist && state.revealGrid){
+    state.revealGrid = false;
+  }
 }
-window.addEventListener('blur', ()=>{
-  abortDrag();
-  if(state.classicHold) endClassicHold();
-});
+function beginClassicHoldReveal(){
+  if(state.assist) return;          // Assisted already shows colours
+  if(state.revealGrid) return;
 
+  state.revealGrid = true;
+
+  const end = ()=>{
+    if(state.assist) return;
+    if(!state.revealGrid) return;
+    state.revealGrid = false;
+    renderSmart();
+  };
+
+  // Window listeners so it still ends even if the grid re-renders mid-hold.
+  window.addEventListener('pointerup', end, { once:true, capture:true });
+  window.addEventListener('pointercancel', end, { once:true, capture:true });
+  window.addEventListener('touchend', end, { once:true, capture:true });
+  window.addEventListener('touchcancel', end, { once:true, capture:true });
+}
+
+window.addEventListener('blur', ()=> abortDrag());
 
 function revealAnswerGiveUp(){
   if(state.finished) return;
@@ -3602,206 +3615,16 @@ function scheduleHintFly(kind){
   requestAnimationFrame(tryRun);
 }
 
-  /* =======================
-   Classic (unassisted) hold-to-drag
-   ======================= */
-function gridTriStringAtStart(s){
-  const a = cellChar(s), b = cellChar(s+1), c = cellChar(s+2);
-  if(!a || !b || !c) return null;
-  return (String(a)+String(b)+String(c)).toLowerCase();
-}
-function findGridTrigramForGroupAtIdx(group, idx){
-  const set = allowedSet(group);
-  if(!set || !set.size) return null;
-
-  const n = getN();
-  const lo = Math.max(0, idx - 2);
-  const hi = Math.min(idx, n - 3);
-
-  for(let s=lo; s<=hi; s++){
-    const tri = gridTriStringAtStart(s);
-    if(tri && set.has(tri)) return { start:s, tri };
-  }
-  return null;
-}
-function pickHeldTrigramAtIdx(idx){
-  const h1 = findGridTrigramForGroupAtIdx('w1', idx);
-  const h2 = findGridTrigramForGroupAtIdx('w2', idx);
-
-  if(h1 && !h2) return { group:'w1', start:h1.start, tri:h1.tri };
-  if(h2 && !h1) return { group:'w2', start:h2.start, tri:h2.tri };
-  if(h1 && h2)  return { group:'w1', start:h1.start, tri:h1.tri }; // tie-break
-  return null;
-}
-function findCompanionTrigram(otherGroup, held){
-  const set = allowedSet(otherGroup);
-  if(!set || !set.size) return null;
-
-  const n = getN();
-  for(let s=0; s<=n-3; s++){
-    const tri = gridTriStringAtStart(s);
-    if(!tri || !set.has(tri)) continue;
-
-    const ol = overlapCount(held.start, s);
-    if(ol > 1) continue;
-    if(ol === 1 && !overlapIsValid(held.start, held.tri, s, tri)) continue;
-
-    return { start:s, tri };
-  }
-  return null;
-}
-function activateClassicHoldForDrag(held, other){
-  if(state.classicHold) return;
-
-  // snapshot ONLY what we need to restore placed-ness (normally both null in Classic)
-  state.classicHoldBackup = {
-    placed: {
-      w1: state.placed.w1 ? { start: state.placed.w1.start, tri: state.placed.w1.tri } : null,
-      w2: state.placed.w2 ? { start: state.placed.w2.start, tri: state.placed.w2.tri } : null,
-    }
-  };
-  state.classicHoldIntroduced = { w1:false, w2:false };
-  state.classicHold = true;
-
-  // Promote held trigram into placed (for existing drag engine + colouring)
-  if(!state.placed[held.group]){
-    state.placed[held.group] = { start: held.start, tri: held.tri };
-    state.classicHoldIntroduced[held.group] = true;
-  }
-
-  // Also promote the other word's trigram if one exists
-  const otherGroup = (held.group === 'w1') ? 'w2' : 'w1';
-  if(other && !state.placed[otherGroup]){
-    state.placed[otherGroup] = { start: other.start, tri: other.tri };
-    state.classicHoldIntroduced[otherGroup] = true;
-  }
-
-  // Remove singles under any promoted trigram cells (prevents duplicate letters)
-  const cells = [];
-  if(state.classicHoldIntroduced.w1 && state.placed.w1) cells.push(...trigramCells(state.placed.w1.start));
-  if(state.classicHoldIntroduced.w2 && state.placed.w2) cells.push(...trigramCells(state.placed.w2.start));
-  if(cells.length) removeSinglesInCells(cells);
-
-  // keep minigrid selection in sync while holding (harmless if you don't notice it)
-  if(state.placed.w1) setMiniHighlightToTri('w1', state.placed.w1.tri);
-  if(state.placed.w2) setMiniHighlightToTri('w2', state.placed.w2.tri);
-
-  clearIOSSelection();
-}
-function endClassicHold(){
-  if(!state.classicHold) return;
-
-  const intro = state.classicHoldIntroduced || {w1:false,w2:false};
-  const lettersByIdx = new Map();
-
-  // Commit any moved promoted trigrams back into singles (so Classic goes white again)
-  for(const g of ['w1','w2']){
-    if(!intro[g]) continue;
-    const pl = state.placed[g];
-    if(!pl) continue;
-    for(let k=0;k<TR;k++){
-      const idx = pl.start + k;
-      lettersByIdx.set(idx, pl.tri[k]); // overlap idx will just be same letter
-    }
-  }
-
-  if(lettersByIdx.size){
-    removeSinglesInCells(Array.from(lettersByIdx.keys()));
-    for(const [idx, ch] of lettersByIdx.entries()){
-      state.singles.push({ id: uid(), ch, idx });
-    }
-  }
-
-  // Restore pre-existing placed groups (almost always null in Classic)
-  const back = state.classicHoldBackup?.placed;
-  state.placed.w1 = back ? back.w1 : null;
-  state.placed.w2 = back ? back.w2 : null;
-
-  state.classicHold = false;
-  state.classicHoldBackup = null;
-  state.classicHoldIntroduced = null;
-
-  abortDrag();
-  renderSmart();
-}
-function armClassicHoldDrag(e, idx){
-  if(state.assist) return false;          // only Classic
-  if(state.classicHold) return false;
-  if(state.drag) return false;
-
-  const held = pickHeldTrigramAtIdx(idx);
-  if(!held) return false;                // only if this cell is part of a valid trigram
-
-  const startX = e.clientX, startY = e.clientY;
-  const pid = e.pointerId;
-
-  let timer = null;
-  let cancelled = false;
-
-  const cancel = ()=>{
-    if(cancelled) return;
-    cancelled = true;
-    if(timer){ clearTimeout(timer); timer = null; }
-    window.removeEventListener('pointermove', onMove);
-  };
-
-  const onMove = (ev)=>{
-    if(ev.pointerId !== pid) return;
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
-    // if they move too much before the long-press, treat it as normal interaction
-    if((dx*dx + dy*dy) > 100){ // ~10px
-      cancel();
-    }
-  };
-
-  window.addEventListener('pointermove', onMove, {passive:true});
-
-  // If they release before the timer fires, do nothing
-  const earlyUp = ()=>{
-    cancel();
-  };
-  window.addEventListener('pointerup', earlyUp, {once:true});
-  window.addEventListener('pointercancel', earlyUp, {once:true});
-
-  timer = setTimeout(()=>{
-    if(cancelled) return;
-    cancel();
-
-    const otherGroup = (held.group === 'w1') ? 'w2' : 'w1';
-    const other =
-      state.placed[otherGroup]
-        ? { start: state.placed[otherGroup].start, tri: state.placed[otherGroup].tri }
-        : findCompanionTrigram(otherGroup, held);
-
-    activateClassicHoldForDrag(held, other);
-    renderSmart();
-
-    // use existing drag engine (start on movement threshold)
-    beginDragWithThreshold(e, (ev)=>startDragTrigram(ev, held.group, held.tri, idx, held.start));
-
-    // IMPORTANT: end hold on release (after drag end runs)
-    const end = ()=>{
-      setTimeout(()=>{ if(state.classicHold) endClassicHold(); }, 0);
-    };
-    window.addEventListener('pointerup', end, {once:true});
-    window.addEventListener('pointercancel', end, {once:true});
-  }, 320);
-
-  return true;
-}
-
 /* =======================
    Drag ghost + drag logic
    ======================= */
 function trigramIsRedAtStart(start){
-  // NOTE: invalid sets are already computed in renderGrid() via recomputeInvalids()
+  recomputeInvalids();
   for(const idx of trigramCells(start)){
     if(state.ol2Set.has(idx) || state.badSet.has(idx) || state.twoSet.has(idx) || state.exclSet.has(idx)) return true;
   }
   return false;
 }
-
 function makeGhostBox(text, bg){
   const ghost = document.createElement('div');
   ghost.className = "ghost";
@@ -4013,9 +3836,14 @@ function onDragEnd(e){
     deleteTrigramGroup(d.group);
   }
 
-  addEffortFromGridChange(before, { countDeletes:true, base:0.5 });
+  addEffortFromGridChange(before, { countDeletes:true, base:0.4 });
+
+  // In Classic, as soon as you let go, the grid goes back to white.
+  if(!state.assist) state.revealGrid = false;
+
   renderSmart();
 }
+
 
 /* =======================
    Underline logic
@@ -4283,11 +4111,12 @@ function renderHintTrack(){
     el.trackW1.appendChild(
       makeTrigramBlock(p.tri1, "sel-w1", "word 1 trigram", ()=>{
         if(state.finished || state.modalOpen) return;
-        if(!state.assist) return;
+        if(!flags().allowHintTapPlace) return;
         // Avoid auto-discovering the 1-letter overlap when tapping the hint minigrid
         placeTrigram('w1', p.tri1, { avoidOverlap:true });
         renderSmart();
       }, "trackBox-w1")
+
     );
     const bx1 = el.trackW1.querySelector('#trackBox-w1');
     if(bx1) bx1.classList.toggle('is-in-grid', gridHasExactTrigram(p.tri1));
@@ -4303,11 +4132,12 @@ function renderHintTrack(){
     el.trackW2.appendChild(
       makeTrigramBlock(p.tri2, "sel-w2", "word 2 trigram", ()=>{
         if(state.finished || state.modalOpen) return;
-        if(!state.assist) return;
+        if(!flags().allowHintTapPlace) return;
         // Same “no overlap” rule for word-2 hint taps
         placeTrigram('w2', p.tri2, { avoidOverlap:true });
         renderSmart();
       }, "trackBox-w2")
+
     );
     const bx2 = el.trackW2.querySelector('#trackBox-w2');
     if(bx2) bx2.classList.toggle('is-in-grid', gridHasExactTrigram(p.tri2));
@@ -4340,8 +4170,8 @@ function renderHintTrack(){
 
       bindTapReliable(d, ()=>{
         if(state.finished || state.modalOpen) return;
+        if(!flags().allowHint3TapInsert) return;
         clearTransientOnAnyChange();
-        if(!state.assist) return;
 
         const n = getN();
         for(let i=0;i<n;i++){
@@ -4748,7 +4578,10 @@ function renderGrid(stealFocus=true){
   // single recompute pass used by BOTH grid colouring + clue underline + status messages
   recomputeInvalids();
 
-  const overlapSet = (!revealed && f.showGridColors) ? computeOverlapIdxSet() : new Set();
+  const showColorsNow = (!revealed) && (f.showGridColors || state.revealGrid);
+  const showBadNow    = (!revealed) && (f.showBadCellColor || state.revealGrid);
+  const overlapSet    = (showColorsNow) ? computeOverlapIdxSet() : new Set();
+
 
   el.grid.style.setProperty('--n', String(n));
   el.grid.innerHTML = "";
@@ -4764,13 +4597,14 @@ function renderGrid(stealFocus=true){
 
     const tri = trigramAtIndex(i);
 
-    if(!revealed && f.showGridColors && tri){
+    if(!revealed && showColorsNow && tri){
       if(overlapSet.has(i)) cell.classList.add('bg-ol');
       else cell.classList.add(tri.group==='w1' ? 'bg-w1' : 'bg-w2');
     }
-    if(!revealed && f.showBadCellColor && (state.ol2Set.has(i) || state.badSet.has(i) || state.twoSet.has(i) || state.exclSet.has(i))){
+    if(!revealed && showBadNow && (state.ol2Set.has(i) || state.badSet.has(i) || state.twoSet.has(i) || state.exclSet.has(i))){
       cell.classList.add('bg-bad');
     }
+
     if(!revealed && f.allowDragTrigrams && tri){
       cell.classList.add('grabbable');
     }
@@ -4788,7 +4622,7 @@ function renderGrid(stealFocus=true){
     input.name = "x-"+i;
     input.enterKeyHint = "done";
 
-    const ro = (!!tri && (f.allowAutoPromote || f.allowDragTrigrams)) || revealed || state.useCustomKB;
+    const ro = (!!tri && f.allowAutoPromote) || revealed || state.useCustomKB;
     input.readOnly = ro;
     input.tabIndex = state.useCustomKB ? -1 : 0;
 
@@ -4845,28 +4679,27 @@ function renderGrid(stealFocus=true){
       });
     }
 
-cell.addEventListener('pointerdown', (e)=>{
-  if(revealed) return;
-  if(state.modalOpen) return;
+    cell.addEventListener('pointerdown', (e)=>{
+      if(revealed) return;
+      if(state.modalOpen) return;
 
-  state.focusIdx = i;
-  if(!state.useCustomKB) requestAnimationFrame(()=> focusCell(i));
+      state.focusIdx = i;
+      if(!state.useCustomKB) requestAnimationFrame(()=> focusCell(i));
 
-  if(f.allowDragTrigrams){
-    const t = trigramAtIndex(i);
-    if(t){
-      clearTransientOnAnyChange();
-      beginDragWithThreshold(e, (ev)=>startDragTrigram(ev, t.group, t.tri, i, t.start));
-    }
-  }else{
-    // Classic mode: long-press a valid trigram to temporarily enable colours + drag
-    if(!state.assist){
-      armClassicHoldDrag(e, i);
-    }
-  }
+      const t = trigramAtIndex(i);
 
-  renderSmart();
-});
+      // Classic mode: grid stays white unless you're actively holding a trigram.
+      if(!state.assist && t){
+        beginClassicHoldReveal();
+      }
+
+      if(f.allowDragTrigrams && t){
+        clearTransientOnAnyChange();
+        beginDragWithThreshold(e, (ev)=>startDragTrigram(ev, t.group, t.tri, i, t.start));
+      }
+
+      renderSmart();
+    });
 
 
     cell.appendChild(input);
