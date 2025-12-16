@@ -2791,7 +2791,70 @@ function typeLetterIntoGrid(letter){
   renderSmart();
   return true;
 }
+function backspaceAtIndexClassic(i){
+  const n = getN();
+  let idx = clamp(i ?? (state.focusIdx ?? 0), 0, n-1);
+
+  // Backspace semantics: if current cell is empty, move left
+  if(!cellChar(idx)){
+    if(idx === 0) return false;
+    idx = idx - 1;
+  }
+
+  // If deleting inside any placed trigram(s), dissolve them into singles first
+  const groupsToDissolve = [];
+  for(const g of ['w1','w2']){
+    const pl = state.placed[g];
+    if(pl && idx >= pl.start && idx < pl.start + TR) groupsToDissolve.push(g);
+  }
+
+  const letters = new Map();     // pos -> ch to re-add as singles
+  const covered = new Set();     // cells that were part of dissolved trigram(s)
+
+  for(const g of groupsToDissolve){
+    const pl = state.placed[g];
+    if(!pl) continue;
+
+    const start = pl.start;
+    const tri   = String(pl.tri || "");
+    state.placed[g] = null;
+
+    for(let k=0;k<TR;k++){
+      const pos = start + k;
+      covered.add(pos);
+      if(pos === idx) continue;          // this is the ONE letter we’re deleting
+      letters.set(pos, tri[k] || "");
+    }
+  }
+
+  // Remove singles in dissolved cells (and the deleted cell)
+  if(covered.size){
+    const kill = new Set(covered);
+    kill.add(idx);
+    state.singles = state.singles.filter(s => !kill.has(s.idx));
+  }else{
+    // No trigram dissolve: just delete a single at idx (if present)
+    state.singles = state.singles.filter(s => s.idx !== idx);
+  }
+
+  // Re-add remaining letters from dissolved trigram(s) as singles,
+  // but don't create hidden singles under any still-placed trigram.
+  for(const [pos, ch] of letters){
+    if(pos < 0 || pos >= n) continue;
+    if(!ch) continue;
+    if(trigramAtIndex(pos)) continue;
+    state.singles.push({ id: uid(), ch: String(ch).toLowerCase(), idx: pos });
+  }
+
+  state.focusIdx = clamp(idx, 0, n-1);
+  return true;
+}
+
 function backspaceAtIndex(i){
+  // Classic/unassisted: ALWAYS delete exactly one letter (never delete a whole trigram)
+  if(!state.assist) return backspaceAtIndexClassic(i);
+
+  // Assisted: keep existing trigram-delete behaviour
   const n = getN();
   const idx = clamp(i ?? (state.focusIdx ?? 0), 0, n-1);
 
@@ -2813,24 +2876,20 @@ function backspaceAtIndex(i){
   if(idx === 0) return false;
 
   if(deleteAtIndex(idx - 1)) return true;
-  state.focusIdx = clamp(idx - 1, 0, n-1);
+  state.focusIdx = clamp(idx - 1, 0, getN()-1);
   return true;
 }
+
 function deleteFromEnd(){
   if(state.finished) return false;
   const n = getN();
   for(let i=n-1;i>=0;i--){
     if(!cellChar(i)) continue;
-    const t = trigramAtIndex(i);
-    if(t){ deleteTrigramGroup(t.group); return true; }
-    if(singleAt(i)){
-      state.singles = state.singles.filter(x => x.idx !== i);
-      state.focusIdx = clamp(i,0,n-1);
-      return true;
-    }
+    return backspaceAtIndex(i); // classic => 1 letter, assisted => trigram delete
   }
   return false;
 }
+
 
 /* =======================
    Typed trigram auto-promotion (Assisted only)
