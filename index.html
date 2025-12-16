@@ -1626,10 +1626,10 @@ const state = {
   focusIdx: 0,
 
   drag: null,
-  classicPeek: false,   // momentary “show colours + allow drag” while held in Classic
-  classicHold: null,    // internal hold/long-press tracker
-
-
+  classicHold: false,
+  classicHoldBackup: null,
+  classicHoldIntroduced: null,
+  
   msgTimer: null,
   msgTransient: false,
   msgTransientEndsAt: 0,
@@ -1698,7 +1698,19 @@ const FLAGS_ELITE = {
   showBadCellColor: false,
   checkFeedback: "minimal",
 };
-function flags(){ return state.assist ? FLAGS_CLASSIC : FLAGS_ELITE; }
+
+// Classic (unassisted) long-press overlay: ONLY grid colours + drag
+const FLAGS_CLASSIC_HOLD = Object.assign({}, FLAGS_ELITE, {
+  allowDragTrigrams: true,
+  showGridColors: true,
+  showBadCellColor: true,
+});
+
+function flags(){
+  if(!state.assist && state.classicHold) return FLAGS_CLASSIC_HOLD;
+  return state.assist ? FLAGS_CLASSIC : FLAGS_ELITE;
+}
+
 
 /* =======================
    Mode pill (Classic vs Assisted)
@@ -1797,8 +1809,9 @@ document.addEventListener('visibilitychange', ()=>{
 if(document.hidden){
   _visibleOnHide();
   abortDrag();
-  cancelClassicPeek();
+  if(state.classicHold) endClassicHold();
 }else{
+
     _visibleOnShow();
   }
 }, { passive:true });
@@ -3334,208 +3347,10 @@ function abortDrag(){
   try{ state.drag.ghost?.remove(); }catch{}
   state.drag = null;
 }
-
-/* =======================
-   Classic hold-to-peek drag (Classic mode only)
-   ======================= */
-function inferClassicPeekTarget(idx){
-  const n = getN();
-  if(idx == null || idx < 0 || idx >= n) return null;
-
-  // If a real placed trigram is already here, use it.
-  const t0 = trigramAtIndex(idx);
-  if(t0) return { group:t0.group, start:t0.start, tri:t0.tri, idx0:idx, fromPlaced:true };
-
-  const p = current();
-  const set1 = (p._allowed && p._allowed.w1) ? p._allowed.w1 : new Set();
-  const set2 = (p._allowed && p._allowed.w2) ? p._allowed.w2 : new Set();
-
-  // Prefer “middle letter” first (feels most natural)
-  const starts = [idx - 1, idx - 2, idx];
-  for(const s of starts){
-    if(s < 0 || s > n - TR) continue;
-
-    const a = cellChar(s), b = cellChar(s+1), c = cellChar(s+2);
-    if(!a || !b || !c) continue;
-
-    const tri = (a+b+c).toLowerCase();
-    const in1 = set1.has(tri);
-    const in2 = set2.has(tri);
-    if(!in1 && !in2) continue;
-
-    // Tie-break if a trigram exists in both words: pick w1
-    const group = in1 ? 'w1' : 'w2';
-    return { group, start:s, tri, idx0:idx, fromPlaced:false };
-  }
-
-  return null;
-}
-
-function commitPlacedTrigramToSingles(group){
-  const pl = state.placed && state.placed[group];
-  if(!pl) return;
-
-  const s = clamp(pl.start, 0, startMax());
-  const tri = String(pl.tri || "").toLowerCase();
-  if(tri.length !== TR){
-    state.placed[group] = null;
-    return;
-  }
-
-  // Ensure destination is “owned” by this trigram
-  removeSinglesInCells(trigramCells(s));
-
-  for(let k=0;k<TR;k++){
-    state.singles.push({ id: uid(), ch: tri[k], idx: s + k });
-  }
-
-  state.placed[group] = null;
-}
-
-function cancelClassicPeek(){
-  const h = state.classicHold;
-  if(!h) return;
-
-  clearTimeout(h.to);
-  window.removeEventListener('pointermove', h.onMove, true);
-  window.removeEventListener('pointerup', h.onUp, true);
-  window.removeEventListener('pointercancel', h.onUp, true);
-
-  state.classicHold = null;
-
-  // If we promoted a trigram into `state.placed`, bake it back into singles.
-  if(h.active){
-    state.classicPeek = false;
-    if(h.didPromote) commitPlacedTrigramToSingles(h.group);
-    renderSmart();
-  }
-}
-
-function armClassicPeekHold(e, idx){
-  if(state.finished || state.modalOpen) return false;
-  if(state.assist) return false;     // only in Classic mode
-  if(state.drag) return false;
-  if(state.classicHold) return false;
-  if(e.pointerType === 'mouse' && e.button !== 0) return false;
-
-  const target = inferClassicPeekTarget(idx);
-  if(!target) return false;
-
-  const HOLD_MS = (e.pointerType === 'mouse') ? 180 : 320;
-  const CANCEL2 = 10*10;  // move before hold activates cancels
-  const DRAG2   = 12*12;  // start dragging after hold activates
-
-  const startX = e.clientX, startY = e.clientY;
-
-  const hold = {
-    pointerId: e.pointerId,
-    idx0: target.idx0,
-    group: target.group,
-    tri: target.tri,
-    start0: target.start,
-    fromPlaced: !!target.fromPlaced,
-    active: false,
-    didPromote: false,
-    to: null,
-    onMove: null,
-    onUp: null,
-  };
-  state.classicHold = hold;
-
-  // Keep receiving pointer events even if the grid re-renders.
-  try{ el.gridWrap && el.gridWrap.setPointerCapture && el.gridWrap.setPointerCapture(e.pointerId); }catch(_){}
-
-  const activate = ()=>{
-    if(state.classicHold !== hold) return;
-
-    hold.active = true;
-    state.classicPeek = true;
-
-    // Promote the trigram under the finger into a temporary placed trigram
-    if(!hold.fromPlaced && !state.placed[hold.group]){
-      state.placed[hold.group] = { start: hold.start0, tri: hold.tri };
-      removeSinglesInCells(trigramCells(hold.start0));
-      hold.didPromote = true;
-    }
-
-    renderSmart();
-  };
-
-  hold.to = setTimeout(activate, HOLD_MS);
-
-  hold.onMove = (ev)=>{
-    if(state.classicHold !== hold) return;
-    if(ev.pointerId !== hold.pointerId) return;
-
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
-    const d2 = dx*dx + dy*dy;
-
-    // Move before the hold activates => treat as a normal tap (cancel peek)
-    if(!hold.active){
-      if(d2 > CANCEL2){
-        cancelClassicPeek();
-      }
-      return;
-    }
-
-    // Once active: suppress scrolling/selection while moving
-    ev.preventDefault();
-
-    // Start dragging ONLY after activation
-    if(!state.drag && d2 > DRAG2){
-      const pl = state.placed[hold.group];
-      if(pl){
-        clearTransientOnAnyChange();
-        startDragTrigram(ev, hold.group, pl.tri, hold.idx0, pl.start);
-      }
-    }
-
-    if(state.drag) onDragMove(ev);
-  };
-
-  hold.onUp = (ev)=>{
-    if(state.classicHold !== hold) return;
-    if(ev.pointerId !== hold.pointerId) return;
-
-    clearTimeout(hold.to);
-    window.removeEventListener('pointermove', hold.onMove, true);
-    window.removeEventListener('pointerup', hold.onUp, true);
-    window.removeEventListener('pointercancel', hold.onUp, true);
-
-    try{ el.gridWrap && el.gridWrap.releasePointerCapture && el.gridWrap.releasePointerCapture(hold.pointerId); }catch(_){}
-
-    // Never activated: just clean up.
-    if(!hold.active){
-      state.classicHold = null;
-      return;
-    }
-
-    // Turn off peek immediately (grid goes white again).
-    state.classicPeek = false;
-    state.classicHold = null;
-
-    // Finish any drag first (it may delete the trigram if dragged out).
-    if(state.drag){
-      onDragEnd(ev); // renders
-    }
-
-    // Bake promoted trigram back into singles so Classic stays editable.
-    if(hold.didPromote){
-      commitPlacedTrigramToSingles(hold.group);
-    }
-
-    renderSmart();
-  };
-
-  window.addEventListener('pointermove', hold.onMove, {passive:false, capture:true});
-  window.addEventListener('pointerup', hold.onUp, {once:true, capture:true});
-  window.addEventListener('pointercancel', hold.onUp, {once:true, capture:true});
-
-  return true;
-}
-
-window.addEventListener('blur', ()=>{ abortDrag(); cancelClassicPeek(); });
+window.addEventListener('blur', ()=>{
+  abortDrag();
+  if(state.classicHold) endClassicHold();
+});
 
 
 function revealAnswerGiveUp(){
@@ -3785,6 +3600,195 @@ function scheduleHintFly(kind){
   };
 
   requestAnimationFrame(tryRun);
+}
+
+  /* =======================
+   Classic (unassisted) hold-to-drag
+   ======================= */
+function gridTriStringAtStart(s){
+  const a = cellChar(s), b = cellChar(s+1), c = cellChar(s+2);
+  if(!a || !b || !c) return null;
+  return (String(a)+String(b)+String(c)).toLowerCase();
+}
+function findGridTrigramForGroupAtIdx(group, idx){
+  const set = allowedSet(group);
+  if(!set || !set.size) return null;
+
+  const n = getN();
+  const lo = Math.max(0, idx - 2);
+  const hi = Math.min(idx, n - 3);
+
+  for(let s=lo; s<=hi; s++){
+    const tri = gridTriStringAtStart(s);
+    if(tri && set.has(tri)) return { start:s, tri };
+  }
+  return null;
+}
+function pickHeldTrigramAtIdx(idx){
+  const h1 = findGridTrigramForGroupAtIdx('w1', idx);
+  const h2 = findGridTrigramForGroupAtIdx('w2', idx);
+
+  if(h1 && !h2) return { group:'w1', start:h1.start, tri:h1.tri };
+  if(h2 && !h1) return { group:'w2', start:h2.start, tri:h2.tri };
+  if(h1 && h2)  return { group:'w1', start:h1.start, tri:h1.tri }; // tie-break
+  return null;
+}
+function findCompanionTrigram(otherGroup, held){
+  const set = allowedSet(otherGroup);
+  if(!set || !set.size) return null;
+
+  const n = getN();
+  for(let s=0; s<=n-3; s++){
+    const tri = gridTriStringAtStart(s);
+    if(!tri || !set.has(tri)) continue;
+
+    const ol = overlapCount(held.start, s);
+    if(ol > 1) continue;
+    if(ol === 1 && !overlapIsValid(held.start, held.tri, s, tri)) continue;
+
+    return { start:s, tri };
+  }
+  return null;
+}
+function activateClassicHoldForDrag(held, other){
+  if(state.classicHold) return;
+
+  // snapshot ONLY what we need to restore placed-ness (normally both null in Classic)
+  state.classicHoldBackup = {
+    placed: {
+      w1: state.placed.w1 ? { start: state.placed.w1.start, tri: state.placed.w1.tri } : null,
+      w2: state.placed.w2 ? { start: state.placed.w2.start, tri: state.placed.w2.tri } : null,
+    }
+  };
+  state.classicHoldIntroduced = { w1:false, w2:false };
+  state.classicHold = true;
+
+  // Promote held trigram into placed (for existing drag engine + colouring)
+  if(!state.placed[held.group]){
+    state.placed[held.group] = { start: held.start, tri: held.tri };
+    state.classicHoldIntroduced[held.group] = true;
+  }
+
+  // Also promote the other word's trigram if one exists
+  const otherGroup = (held.group === 'w1') ? 'w2' : 'w1';
+  if(other && !state.placed[otherGroup]){
+    state.placed[otherGroup] = { start: other.start, tri: other.tri };
+    state.classicHoldIntroduced[otherGroup] = true;
+  }
+
+  // Remove singles under any promoted trigram cells (prevents duplicate letters)
+  const cells = [];
+  if(state.classicHoldIntroduced.w1 && state.placed.w1) cells.push(...trigramCells(state.placed.w1.start));
+  if(state.classicHoldIntroduced.w2 && state.placed.w2) cells.push(...trigramCells(state.placed.w2.start));
+  if(cells.length) removeSinglesInCells(cells);
+
+  // keep minigrid selection in sync while holding (harmless if you don't notice it)
+  if(state.placed.w1) setMiniHighlightToTri('w1', state.placed.w1.tri);
+  if(state.placed.w2) setMiniHighlightToTri('w2', state.placed.w2.tri);
+
+  clearIOSSelection();
+}
+function endClassicHold(){
+  if(!state.classicHold) return;
+
+  const intro = state.classicHoldIntroduced || {w1:false,w2:false};
+  const lettersByIdx = new Map();
+
+  // Commit any moved promoted trigrams back into singles (so Classic goes white again)
+  for(const g of ['w1','w2']){
+    if(!intro[g]) continue;
+    const pl = state.placed[g];
+    if(!pl) continue;
+    for(let k=0;k<TR;k++){
+      const idx = pl.start + k;
+      lettersByIdx.set(idx, pl.tri[k]); // overlap idx will just be same letter
+    }
+  }
+
+  if(lettersByIdx.size){
+    removeSinglesInCells(Array.from(lettersByIdx.keys()));
+    for(const [idx, ch] of lettersByIdx.entries()){
+      state.singles.push({ id: uid(), ch, idx });
+    }
+  }
+
+  // Restore pre-existing placed groups (almost always null in Classic)
+  const back = state.classicHoldBackup?.placed;
+  state.placed.w1 = back ? back.w1 : null;
+  state.placed.w2 = back ? back.w2 : null;
+
+  state.classicHold = false;
+  state.classicHoldBackup = null;
+  state.classicHoldIntroduced = null;
+
+  abortDrag();
+  renderSmart();
+}
+function armClassicHoldDrag(e, idx){
+  if(state.assist) return false;          // only Classic
+  if(state.classicHold) return false;
+  if(state.drag) return false;
+
+  const held = pickHeldTrigramAtIdx(idx);
+  if(!held) return false;                // only if this cell is part of a valid trigram
+
+  const startX = e.clientX, startY = e.clientY;
+  const pid = e.pointerId;
+
+  let timer = null;
+  let cancelled = false;
+
+  const cancel = ()=>{
+    if(cancelled) return;
+    cancelled = true;
+    if(timer){ clearTimeout(timer); timer = null; }
+    window.removeEventListener('pointermove', onMove);
+  };
+
+  const onMove = (ev)=>{
+    if(ev.pointerId !== pid) return;
+    const dx = ev.clientX - startX;
+    const dy = ev.clientY - startY;
+    // if they move too much before the long-press, treat it as normal interaction
+    if((dx*dx + dy*dy) > 100){ // ~10px
+      cancel();
+    }
+  };
+
+  window.addEventListener('pointermove', onMove, {passive:true});
+
+  // If they release before the timer fires, do nothing
+  const earlyUp = ()=>{
+    cancel();
+  };
+  window.addEventListener('pointerup', earlyUp, {once:true});
+  window.addEventListener('pointercancel', earlyUp, {once:true});
+
+  timer = setTimeout(()=>{
+    if(cancelled) return;
+    cancel();
+
+    const otherGroup = (held.group === 'w1') ? 'w2' : 'w1';
+    const other =
+      state.placed[otherGroup]
+        ? { start: state.placed[otherGroup].start, tri: state.placed[otherGroup].tri }
+        : findCompanionTrigram(otherGroup, held);
+
+    activateClassicHoldForDrag(held, other);
+    renderSmart();
+
+    // use existing drag engine (start on movement threshold)
+    beginDragWithThreshold(e, (ev)=>startDragTrigram(ev, held.group, held.tri, idx, held.start));
+
+    // IMPORTANT: end hold on release (after drag end runs)
+    const end = ()=>{
+      setTimeout(()=>{ if(state.classicHold) endClassicHold(); }, 0);
+    };
+    window.addEventListener('pointerup', end, {once:true});
+    window.addEventListener('pointercancel', end, {once:true});
+  }, 320);
+
+  return true;
 }
 
 /* =======================
@@ -4743,11 +4747,7 @@ function renderGrid(stealFocus=true){
   // single recompute pass used by BOTH grid colouring + clue underline + status messages
   recomputeInvalids();
 
-  const peek = (!state.assist && state.classicPeek);
-  const showColors = (!revealed && (f.showGridColors || peek));
-  const canDrag    = (!revealed && (f.allowDragTrigrams || peek));
-  const overlapSet = showColors ? computeOverlapIdxSet() : new Set();
-
+  const overlapSet = (!revealed && f.showGridColors) ? computeOverlapIdxSet() : new Set();
 
   el.grid.style.setProperty('--n', String(n));
   el.grid.innerHTML = "";
@@ -4763,17 +4763,16 @@ function renderGrid(stealFocus=true){
 
     const tri = trigramAtIndex(i);
 
-    if(showColors && tri){
+    if(!revealed && f.showGridColors && tri){
       if(overlapSet.has(i)) cell.classList.add('bg-ol');
       else cell.classList.add(tri.group==='w1' ? 'bg-w1' : 'bg-w2');
     }
     if(!revealed && f.showBadCellColor && (state.ol2Set.has(i) || state.badSet.has(i) || state.twoSet.has(i) || state.exclSet.has(i))){
       cell.classList.add('bg-bad');
     }
-if(canDrag && tri){
-  cell.classList.add('grabbable');
-}
-
+    if(!revealed && f.allowDragTrigrams && tri){
+      cell.classList.add('grabbable');
+    }
 
     const input = document.createElement('input');
     input.type = "text";
@@ -4788,7 +4787,7 @@ if(canDrag && tri){
     input.name = "x-"+i;
     input.enterKeyHint = "done";
 
-    const ro = !!tri || revealed || state.useCustomKB;
+    const ro = (!!tri && (f.allowAutoPromote || f.allowDragTrigrams)) || revealed || state.useCustomKB;
     input.readOnly = ro;
     input.tabIndex = state.useCustomKB ? -1 : 0;
 
@@ -4849,22 +4848,20 @@ cell.addEventListener('pointerdown', (e)=>{
   if(revealed) return;
   if(state.modalOpen) return;
 
-  // helps prevent iOS selection/press-callouts inside the grid
-  e.preventDefault();
-
   state.focusIdx = i;
   if(!state.useCustomKB) requestAnimationFrame(()=> focusCell(i));
 
   if(f.allowDragTrigrams){
-    // Assisted mode: normal drag behaviour
     const t = trigramAtIndex(i);
     if(t){
       clearTransientOnAnyChange();
       beginDragWithThreshold(e, (ev)=>startDragTrigram(ev, t.group, t.tri, i, t.start));
     }
   }else{
-    // Classic mode: click-hold / long-press to temporarily enable colours + drag
-    armClassicPeekHold(e, i);
+    // Classic mode: long-press a valid trigram to temporarily enable colours + drag
+    if(!state.assist){
+      armClassicHoldDrag(e, i);
+    }
   }
 
   renderSmart();
