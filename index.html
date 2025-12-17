@@ -2523,7 +2523,7 @@ function clearMsgTimer(){
 }
 function setMsgDirect(text, kind){
   clearMsgTimer();
-  el.msg.classList.remove('show','warn','result');
+  el.msg.classList.remove('show','warn','result','assistFlash');
   el.msg.textContent = text || "";
   if(!text) return;
   void el.msg.offsetWidth;
@@ -2539,7 +2539,8 @@ function setTransientMsgDirect(text, ms=2400, kind=null){
   state.msgTransientEndsAt = performance.now() + ms;
 
   state.msgTimer = setTimeout(()=>{
-    el.msg.classList.remove('show','warn','result');
+    el.msg.classList.remove('show','warn','result','assistFlash');
+
     el.msg.textContent = "";
     state.msgTimer = null;
     state.msgTransient = false;
@@ -2554,7 +2555,7 @@ function clearTransientOnAnyChange(){
     setMsg("");
   }
   if(state.msgTransient){
-    el.msg.classList.remove('show','warn','result');
+    el.msg.classList.remove('show','warn','result','assistFlash');
     el.msg.textContent = "";
     clearMsgTimer();
   }
@@ -2563,6 +2564,40 @@ function excludedMsgText(){
   const n = (state.exclTris?.w1?.size || 0) + (state.exclTris?.w2?.size || 0);
   return (n >= 2) ? "Your hints excluded these trigrams" : "Your hint excluded this trigram";
 }
+  /* =======================
+   Assist activation flash (clue glow + message)
+   ======================= */
+function triggerAssistActivationFlash(){
+  // --- clue glow ---
+  if(el.clue){
+    el.clue.classList.remove('assist-glow');
+    void el.clue.offsetWidth;          // restart animation reliably
+    el.clue.classList.add('assist-glow');
+    setTimeout(()=>{ el.clue.classList.remove('assist-glow'); }, 3250);
+  }
+
+  // --- message flash ---
+  if(!el.msg) return;
+
+  clearMsgTimer();
+  el.msg.classList.remove('show','warn','result','assistFlash');
+  el.msg.textContent = "Assisted mode activated";
+  void el.msg.offsetWidth;
+  el.msg.classList.add('assistFlash');
+
+  // keep status messages from immediately overwriting it
+  state.msgTransient = true;
+  state.msgTransientEndsAt = performance.now() + 4200;
+
+  state.msgTimer = setTimeout(()=>{
+    el.msg.classList.remove('show','warn','result','assistFlash');
+    el.msg.textContent = "";
+    state.msgTimer = null;
+    state.msgTransient = false;
+    state.msgTransientEndsAt = 0;
+  }, 4200);
+}
+
 
 /* =======================
    Modal (kept; lightweight)
@@ -3362,7 +3397,7 @@ function hintPhraseText(h){
 }
 function setResultSkillMsg(line1, skill){
   clearMsgTimer();
-  el.msg.classList.remove('show','warn','result');
+  el.msg.classList.remove('show','warn','result','assistFlash');
   el.msg.innerHTML = `<div class="msgLine">${escapeHtml(line1)}</div>`;
 
   const badgeVal = document.getElementById('skillBadgeValue');
@@ -4454,18 +4489,27 @@ function onClueWordActivate(group){
     const w = e.target && e.target.closest ? e.target.closest('.clueWord') : null;
     const group = w ? w.dataset.group : null;
 
-    if(!state.assist){
-      if(group && !state.placed[group]){
-        setEnhanced(true, false, 'user');
-        lastActionAt = Date.now();
-        onClueWordActivate(group);
-        return;
-      }
-      setEnhanced(true, true, 'user');
-      lastActionAt = 0;
-      if(!state.useCustomKB) requestAnimationFrame(()=> focusCell(state.focusIdx ?? 0));
-      return;
-    }
+if(!state.assist){
+  if(group && !state.placed[group]){
+    setEnhanced(true, false, 'user');
+    lastActionAt = Date.now();
+    onClueWordActivate(group);
+
+    // show assist activation flash AFTER the clue action (so it doesn't get cleared)
+    triggerAssistActivationFlash();
+    return;
+  }
+
+  setEnhanced(true, true, 'user');
+
+  // tapped clue area (or already had a trigram) – still show activation flash
+  triggerAssistActivationFlash();
+
+  lastActionAt = 0;
+  if(!state.useCustomKB) requestAnimationFrame(()=> focusCell(state.focusIdx ?? 0));
+  return;
+}
+
 
     if(!w) return;
 
