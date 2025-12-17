@@ -2783,26 +2783,80 @@ function updateExtrasHintFade(){
    Typing
    ======================= */
 function nextEditableFrom(startIdx, dir){
+  // Trigram cells are now editable too; keep this for any other callers.
   const n = getN();
-  let i = clamp(startIdx, 0, n-1);
-  while(i >= 0 && i < n){
-    if(!trigramAtIndex(i)) return i;
-    i += dir;
-  }
-  return null;
+  return clamp(startIdx, 0, n-1);
 }
+
+// If the user edits a cell covered by a placed trigram, dissolve that trigram into singles
+// so the edit applies to the intended cell.
+function dissolveTrigramsCoveringIndex(idx){
+  const n = getN();
+  const i = clamp(idx, 0, n-1);
+
+  const groups = [];
+  for(const g of ['w1','w2']){
+    const pl = state.placed[g];
+    if(pl && i >= pl.start && i < pl.start + TR) groups.push(g);
+  }
+  if(!groups.length) return false;
+
+  const letters = new Map();  // pos -> ch
+  const covered = new Set();  // all cells that were part of dissolved trigram(s)
+
+  for(const g of groups){
+    const pl = state.placed[g];
+    if(!pl) continue;
+
+    const start = pl.start;
+    const tri   = String(pl.tri || "");
+    state.placed[g] = null;
+
+    for(let k=0;k<TR;k++){
+      const pos = start + k;
+      covered.add(pos);
+      letters.set(pos, tri[k] || "");
+    }
+  }
+
+  // Remove any singles that might exist under those cells (we'll re-add what we want)
+  state.singles = state.singles.filter(s => !covered.has(s.idx));
+
+  // Re-add the remaining letters as singles (except the edited cell),
+  // and never create singles under any still-placed trigram (e.g. overlap cases).
+  for(const [pos, ch] of letters){
+    if(pos === i) continue;
+    if(pos < 0 || pos >= n) continue;
+    if(!ch) continue;
+    if(trigramAtIndex(pos)) continue;
+    state.singles.push({ id: uid(), ch: String(ch).toLowerCase(), idx: pos });
+  }
+
+  return true;
+}
+
 function typeLetterAtIndex(idx, ch){
   const n = getN();
-  const lower = ch.toLowerCase();
-  const prev = String(cellChar(idx) || "").toLowerCase();
+  const i = clamp(idx, 0, n-1);
+  const lower = String(ch || "").slice(0,1).toLowerCase();
+  if(!isAlpha(lower)) return;
+
+  // Capture what was there BEFORE dissolving (for effort scoring correctness)
+  const prev = String(cellChar(i) || "").toLowerCase();
+
+  // If typing into a placed trigram, dissolve it first so the edit takes effect.
+  dissolveTrigramsCoveringIndex(i);
+
   if(prev !== lower) addEffort(1);
 
-  state.singles = state.singles.filter(x => x.idx !== idx);
-  state.singles.push({id: uid(), ch: lower, idx});
+  // Overwrite any existing single at this idx
+  state.singles = state.singles.filter(x => x.idx !== i);
+  state.singles.push({ id: uid(), ch: lower, idx: i });
 
-  const next = nextEditableFrom(idx + 1, +1);
-  state.focusIdx = (next == null) ? clamp(idx + 1, 0, n-1) : next;
+  // Move focus forward by 1 (even if that lands inside a trigram — it’s editable now)
+  state.focusIdx = clamp(i + 1, 0, n - 1);
 }
+
 function typeLetterIntoGrid(letter){
   if(state.finished) return false;
   if(state.modalOpen) return false;
@@ -2813,17 +2867,13 @@ function typeLetterIntoGrid(letter){
   clearTransientOnAnyChange();
 
   const n = getN();
-  let idx = clamp(state.focusIdx ?? 0, 0, n-1);
-  if(trigramAtIndex(idx)){
-    const found = nextEditableFrom(idx, +1);
-    if(found == null) return false;
-    idx = found;
-  }
+  const idx = clamp(state.focusIdx ?? 0, 0, n-1);
 
   typeLetterAtIndex(idx, ch);
   renderSmart();
   return true;
 }
+
 function backspaceAtIndexClassic(i){
   const n = getN();
   let idx = clamp(i ?? (state.focusIdx ?? 0), 0, n-1);
