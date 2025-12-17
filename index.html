@@ -53,35 +53,23 @@
   -webkit-tap-highlight-color:transparent;
   touch-action:manipulation;
 }
-/* iOS/Safari: be more aggressive about suppressing selection + callout */
-html, body{
+
+  html.has-kb, html.has-kb body{
+  -webkit-touch-callout:none;
   -webkit-user-select:none;
   user-select:none;
-  -webkit-touch-callout:none;
   -webkit-tap-highlight-color:transparent;
 }
 
-/* Inputs/buttons are common culprits for the loupe + edit menu */
-button, input, textarea{
+html.has-kb .kbKey, 
+html.has-kb .kbKey *{
+  -webkit-touch-callout:none;
   -webkit-user-select:none;
   user-select:none;
-  -webkit-touch-callout:none;
+  -webkit-user-drag:none;
   -webkit-tap-highlight-color:transparent;
 }
 
-/* Extra force for your grid inputs */
-.cell input{
-  -webkit-user-select:none !important;
-  user-select:none !important;
-  -webkit-touch-callout:none !important;
-}
-
-/* Extra force for keyboard keys (incl delete) */
-.kbKey{
-  -webkit-user-select:none !important;
-  user-select:none !important;
-  -webkit-touch-callout:none !important;
-}
 
 
   /* Smooth dim/blur transitions for main content + keyboard */
@@ -4340,40 +4328,7 @@ function renderHintTrack(){
   updateExtrasHintFade();
 }
 
-/* iOS: kill loupe / text-selection UI + “Create Link” menu */
-(function(){
-  const isIOS =
-    /iP(ad|hone|od)/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-  if(!isIOS) return;
-
-  const clearSel = () => {
-    const sel = window.getSelection && window.getSelection();
-    if(sel && sel.rangeCount) sel.removeAllRanges();
-  };
-
-  // Stop the long-press context menu and any “select start” attempts
-  const hardBlock = (e) => { e.preventDefault(); e.stopPropagation(); clearSel(); return false; };
-  document.addEventListener("contextmenu", hardBlock, true);
-  document.addEventListener("selectstart", hardBlock, true);
-
-  // If Safari still creates a selection, immediately clear it
-  document.addEventListener("selectionchange", clearSel, true);
-
-  // When tapping your custom keyboard, ensure no input stays focused
-  const kbHost = document.getElementById("kbHost") || document.querySelector(".kbHost");
-  if(kbHost){
-    const blurIfText = () => {
-      const ae = document.activeElement;
-      if(ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) ae.blur();
-    };
-    kbHost.addEventListener("touchstart", () => { blurIfText(); clearSel(); }, {capture:true, passive:true});
-    kbHost.addEventListener("pointerdown", () => { blurIfText(); clearSel(); }, true);
-  }
-})();
-
-  
 /* =======================
    Clue tap behaviour
    ======================= */
