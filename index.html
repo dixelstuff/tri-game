@@ -4,6 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Trigrame Demo</title>
+  <!-- Preload modal images -->
+<link rel="preload" as="image" href="demo_clue.png">
+<link rel="preload" as="image" href="demo_grid.gif">
+<link rel="preload" as="image" href="question-mark.svg">
+<link rel="preload" as="image" href="stats-icon.svg">
+
 
 <style>
   :root{
@@ -1447,7 +1453,7 @@ html.has-kb .kbKey *{
         <strong>1 or 2 extra letters</strong> to make the word.
       </p>
             <div class="helpDemos" aria-label="Demo images">
-        <img src="demo_grid.gif" alt="Grid demo" loading="lazy" decoding="async">
+        <img src="demo_grid.gif" alt="Grid demo" loading="eager" decoding="async">
       </div>
 
       <p>
