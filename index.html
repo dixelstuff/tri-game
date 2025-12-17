@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-  <title>Trigram Demo</title>
+  <title>Trigrame Demo</title>
 
 <style>
   :root{
@@ -2817,6 +2817,12 @@ function updateExtrasHintFade(){
 /* =======================
    Typing
    ======================= */
+function nextEditableFrom(startIdx, dir){
+  // Trigram cells are now editable too; keep this for any other callers.
+  const n = getN();
+  return clamp(startIdx, 0, n-1);
+}
+
 // If the user edits a cell covered by a placed trigram, dissolve that trigram into singles
 // so the edit applies to the intended cell.
 function dissolveTrigramsCoveringIndex(idx){
@@ -4171,7 +4177,7 @@ function placeTrigram(group, tri, opts = {}){
   return true;
 }
 
-){
+function cyclePlacedTrigram(group, opts = {}){
   if(!flags().allowClueTapCycle) return;
   if(state.finished) return;
 
@@ -4203,6 +4209,13 @@ function placeTrigram(group, tri, opts = {}){
   const tri = w.slice(s, s+3);
   // Clue taps drive this, so we also avoid auto-overlap here
   placeTrigram(group, tri, { avoidOverlap:true });
+}
+
+function firstTrigramOfWord(group){
+  const p = current();
+  const w = (group === 'w1') ? p._w1 : p._w2;
+  if(w.length < 3) return null;
+  return w.slice(0, 3);
 }
 
 function cyclePlacedTrigram(group, opts = {}){
