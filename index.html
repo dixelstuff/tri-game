@@ -671,11 +671,15 @@ html.has-kb .kbKey *{
     pointer-events:none;
     transition:opacity .35s ease, transform .35s ease;
   }
-  .wrap.solved .skillBadge{
-    opacity:1;
-    transform:translate(-50%,-50%) translateY(var(--badge-drop)) scale(.86);
-    transition-delay:.06s;
-  }
+.wrap.solved .skillBadge{
+  opacity:1;
+  transform:translate(-50%,-50%) translateY(var(--badge-drop)) scale(.86);
+  transition-delay:.06s;
+  pointer-events:auto;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+
 
     .nextPuzzleBtn{
     position:absolute;
@@ -1595,6 +1599,7 @@ const el = {
   prevBtn: document.getElementById('prevBtn'),
   nextBtn: document.getElementById('nextBtn'),
   nextPuzzleBtn: document.getElementById('nextPuzzleBtn'),
+  skillBadge: document.getElementById('skillBadge'),
   count: document.getElementById('count'),
   kbHost: document.getElementById('kbHost'),
   hintsModal: document.getElementById('hintsModal'),
@@ -5106,6 +5111,9 @@ if(el.nextPuzzleBtn){
 // Stats button wiring
 if(el.statsBtn){
   el.statsBtn.addEventListener('click', (e)=>{ e.preventDefault(); openStats(); });
+}
+  if(el.skillBadge){
+  bindFastTap(el.skillBadge, ()=> openStats());
 }
 if(el.statsClose){
   el.statsClose.addEventListener('click', (e)=>{ e.preventDefault(); closeStats(); });
