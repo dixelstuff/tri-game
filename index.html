@@ -475,6 +475,11 @@ html.has-kb .kbKey *{
     -webkit-user-select:none;
   }
   .cell input::selection{ background:transparent; color:inherit; }
+    .cell input::placeholder{
+    color:rgba(0,0,0,.18);
+    opacity:1; /* keep iOS/Safari from reducing it further */
+  }
+
 
   .cell.bg-w1{ background:var(--w1); }
   .cell.bg-w2{ background:var(--w2); }
@@ -4805,6 +4810,8 @@ function renderGrid(stealFocus=true){
   const n = getN();
   const f = flags();
   const revealed = state.finished;
+  const ghost4 = ((current().answer || "")[3] || "").toLowerCase();
+
 
   if(!revealed && f.allowAutoPromote){
     for(let k=0;k<2;k++){
@@ -4857,6 +4864,8 @@ function renderGrid(stealFocus=true){
     input.value = cellChar(i);
     input.name = "x-"+i;
     input.enterKeyHint = "done";
+    if(i === 3 && ghost4 && !input.value) input.placeholder = ghost4;
+
 
     const ro = (!!tri && f.allowAutoPromote) || revealed || state.useCustomKB;
     input.readOnly = ro;
