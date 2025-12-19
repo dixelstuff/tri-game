@@ -475,11 +475,6 @@ html.has-kb .kbKey *{
     -webkit-user-select:none;
   }
   .cell input::selection{ background:transparent; color:inherit; }
-    .cell input::placeholder{
-    color:rgba(0,0,0,.18);
-    opacity:1; /* keep iOS/Safari from reducing it further */
-  }
-
 
   .cell.bg-w1{ background:var(--w1); }
   .cell.bg-w2{ background:var(--w2); }
@@ -1536,57 +1531,58 @@ html.has-kb .kbKey *{
    Puzzles
    ======================= */
 const PUZZLES = [
-  { clue:"Uphill thread", word1:"uphill", word2:"thread", answer:"thrills", tri1:"ill", tri2:"thr" },
-  { clue:"Great forbid", word1:"great", word2:"forbid", answer:"forearm", tri1:"rea", tri2:"for" },
-  { clue:"Drama prompt", word1:"drama", word2:"prompt", answer:"program", tri1:"ram", tri2:"pro" },
-  { clue:"Crayon remedy", word1:"crayon", word2:"remedy", answer:"crammed", tri1:"cra", tri2:"med" },
-  { clue:"Spilled sewer", word1:"spilled", word2:"sewer", answer:"jeweled", tri1:"led", tri2:"ewe" },
-  { clue:"Worldly glory", word1:"worldly", word2:"glory", answer:"forlorn", tri1:"orl", tri2:"lor" },
-  { clue:"Plainly cutoff", word1:"plainly", word2:"cutoff", answer:"playoff", tri1:"pla", tri2:"off" },
-  { clue:"Tinker atrophy", word1:"tinker", word2:"atrophy", answer:"stroker", tri1:"ker", tri2:"tro" },
-  { clue:"Tombs ruined", word1:"tombs", word2:"ruined", answer:"combine", tri1:"omb", tri2:"ine" },
-  { clue:"Praise jostle", word1:"praise", word2:"jostle", answer:"prattle", tri1:"pra", tri2:"tle" },
-  { clue:"Poker matched", word1:"poker", word2:"matched", answer:"checker", tri1:"ker", tri2:"che" },
-  { clue:"Gravy ruched", word1:"gravy", word2:"ruched", answer:"graphed", tri1:"gra", tri2:"hed" },
-  { clue:"Pleased antiwar", word1:"pleased", word2:"antiwar", answer:"peasant", tri1:"eas", tri2:"ant" },
-  { clue:"Giants perfidy", word1:"giants", word2:"perfidy", answer:"operant", tri1:"ant", tri2:"per" },
-  { clue:"Bumper wyvern", word1:"bumper", word2:"wyvern", answer:"pervert", tri1:"per", tri2:"ver" },
-  { clue:"Drunk omitted", word1:"drunk", word2:"omitted", answer:"grunted", tri1:"run", tri2:"ted" },
-  { clue:"Swoop speedos", word1:"swoop", word2:"speedos", answer:"whoopee", tri1:"oop", tri2:"pee" },
-  { clue:"Watch strafe", word1:"watch", word2:"strafe", answer:"stretch", tri1:"tch", tri2:"str" },
-  { clue:"Polar burlap", word1:"polar", word2:"burlap", answer:"burglar", tri1:"lar", tri2:"bur" },
-  { clue:"Dicey speared", word1:"dicey", word2:"speared", answer:"predict", tri1:"dic", tri2:"red" },
-  { clue:"Local minors", word1:"local", word2:"minors", answer:"calming", tri1:"cal", tri2:"min" },
-  { clue:"Mineral sofar", word1:"mineral", word2:"sofar", answer:"farming", tri1:"min", tri2:"far" },
-  { clue:"Cummin realise", word1:"cummin", word2:"realise", answer:"reaming", tri1:"min", tri2:"rea" },
-  { clue:"Tollway lauder", word1:"tollway", word2:"lauder", answer:"collude", tri1:"oll", tri2:"ude" },
-  { clue:"Heaven comfort", word1:"heaven", word2:"comfort", answer:"forgave", tri1:"ave", tri2:"for" },
-  { clue:"Trust caprice", word1:"trust", word2:"caprice", answer:"justice", tri1:"ust", tri2:"ice" },
-  { clue:"Luggage awhile", word1:"luggage", word2:"awhile", answer:"mileage", tri1:"age", tri2:"ile" },
-  { clue:"Space husband", word1:"space", word2:"husband", answer:"spandex", tri1:"spa", tri2:"and" },
-  { clue:"Prior oculus", word1:"prior", word2:"oculus", answer:"culprit", tri1:"pri", tri2:"cul" },
-  { clue:"Candle inflict", word1:"candle", word2:"inflict", answer:"pelican", tri1:"can", tri2:"lic" },
-  { clue:"Weight heavier", word1:"weight", word2:"heavier", answer:"bighead", tri1:"igh", tri2:"hea" },
-  { clue:"Builder areola", word1:"builder", word2:"areola", answer:"reorder", tri1:"der", tri2:"reo" },
-  { clue:"Carnage glacial", word1:"carnage", word2:"glacial", answer:"placard", tri1:"car", tri2:"lac" },
-  { clue:"Dirty pavers", word1:"dirty", word2:"pavers", answer:"poverty", tri1:"rty", tri2:"ver" },
-  { clue:"Latte bouncy", word1:"latte", word2:"bouncy", answer:"latency", tri1:"lat", tri2:"ncy" },
-  { clue:"Public skitter", word1:"public", word2:"skitter", answer:"blister", tri1:"bli", tri2:"ter" },
-  { clue:"Tables ricin", word1:"tables", word2:"ricin", answer:"icicles", tri1:"les", tri2:"ici" },
-  { clue:"Pumper turds", word1:"pumper", word2:"turds", answer:"perturb", tri1:"per", tri2:"tur" },
-  { clue:"Bright madras", word1:"bright", word2:"madras", answer:"draught", tri1:"ght", tri2:"dra" },
-  { clue:"Flatten accrual", word1:"flatten", word2:"accrual", answer:"flaccid", tri1:"fla", tri2:"acc" },
-  { clue:"Breaker capped", word1:"breaker", word2:"capped", answer:"reapply", tri1:"rea", tri2:"app" },
-  { clue:"Apply winches", word1:"apply", word2:"winches", answer:"cheaply", tri1:"ply", tri2:"che" },
-  { clue:"Harder rhino", word1:"harder", word2:"rhino", answer:"hinders", tri1:"der", tri2:"hin" },
-  { clue:"Beast lowered", word1:"beast", word2:"lowered", answer:"whereas", tri1:"eas", tri2:"ere" },
-  { clue:"Fluent female", word1:"fluent", word2:"female", answer:"talents", tri1:"ent", tri2:"ale" },
-  { clue:"Closely girdles", word1:"closely", word2:"girdles", answer:"useless", tri1:"sel", tri2:"les" },
-  { clue:"Square dynamos", word1:"square", word2:"dynamos", answer:"mosques", tri1:"squ", tri2:"mos" },
-  { clue:"Enbalm conus", word1:"enbalm", word2:"conus", answer:"balcony", tri1:"bal", tri2:"con" },
-  { clue:"Dreaded hungry", word1:"dreaded", word2:"hungry", answer:"hundred", tri1:"dre", tri2:"hun" },
-  { clue:"Babies ruffled", word1:"babies", word2:"ruffled", answer:"babbled", tri1:"bab", tri2:"led" },
-  { clue:"Solved clench", word1:"solved", word2:"clench", answer:"cleaved", tri1:"ved", tri2:"cle" },
+  { clue:"Ample bounty", word1:"ample", word2:"bounty", answer:"aplenty", tri1:"ple", tri2:"nty" },
+  { clue:"Vegans' picnic", word1:"vegans", word2:"picnic", answer:"organic", tri1:"gan", tri2:"nic" },
+  { clue:"Winter weaver", word1:"winter", word2:"weaver", answer:"sweater", tri1:"ter", tri2:"wea" },
+  { clue:"Wheezy groans", word1:"wheezy", word2:"groans", answer:"banshee", tri1:"hee", tri2:"ans" },
+  { clue:"Absurd dreams", word1:"absurd", word2:"dreams", answer:"surreal", tri1:"sur", tri2:"rea" },
+  { clue:"Summer sunset", word1:"summer", word2:"sunset", answer:"immense", tri1:"mme", tri2:"nse" },
+  { clue:"Puzzles granny", word1:"puzzles", word2:"granny", answer:"rankles", tri1:"les", tri2:"ran" },
+  { clue:"Laundry cleaner", word1:"laundry", word2:"cleaner", answer:"mundane", tri1:"und", tri2:"ane" },
+  { clue:"Rotten tycoon!", word1:"rotten", word2:"tycoon", answer:"boycott", tri1:"ott", tri2:"yco" },
+  { clue:"Loaded sleigh", word1:"loaded", word2:"sleigh", answer:"sledded", tri1:"ded", tri2:"sle" },
+  { clue:"Popular encore", word1:"popular", word2:"encore", answer:"popcorn", tri1:"pop", tri2:"cor" },
+  { clue:"Pancake ordeal", word1:"pancake", word2:"ordeal", answer:"deadpan", tri1:"pan", tri2:"dea" },
+  { clue:"Bamboo catalog", word1:"bamboo", word2:"catalog", answer:"logbook", tri1:"boo", tri2:"log" },
+  { clue:"Trucker reunion", word1:"trucker", word2:"reunion", answer:"ruction", tri1:"ruc", tri2:"ion" },
+  { clue:"Pasta sarcasm", word1:"pasta", word2:"sarcasm", answer:"starchy", tri1:"sta", tri2:"arc" },
+  { clue:"Custom jigsaw", word1:"custom", word2:"jigsaw", answer:"sawdust", tri1:"ust", tri2:"saw" },
+  { clue:"Emotion robbed", word1:"emotion", word2:"robbed", answer:"robotic", tri1:"oti", tri2:"rob" },
+  { clue:"Elegant bauble", word1:"elegant", word2:"bauble", answer:"legible", tri1:"leg", tri2:"ble" },
+  { clue:"Divorce payment", word1:"divorce", word2:"payment", answer:"percent", tri1:"rce", tri2:"ent" },
+  { clue:"Campus admirer", word1:"campus", word2:"admirer", answer:"vampire", tri1:"amp", tri2:"ire" },
+  { clue:"Karaoke wonder", word1:"karaoke", word2:"wonder", answer:"parader", tri1:"ara", tri2:"der" },
+  { clue:"Butch aliens", word1:"butch", word2:"aliens", answer:"halibut", tri1:"but", tri2:"ali" },
+  { clue:"Curious mailman", word1:"curious", word2:"mailman", answer:"curtail", tri1:"cur", tri2:"ail" },
+  { clue:"Topless prince", word1:"topless", word2:"prince", answer:"essence", tri1:"ess", tri2:"nce" },
+  { clue:"Jinxed bonbon", word1:"jinxed", word2:"bonbon", answer:"unboxed", tri1:"xed", tri2:"nbo" },
+  { clue:"Wholly muscle?", word1:"wholly", word2:"muscle", answer:"mollusc", tri1:"oll", tri2:"usc" },
+  { clue:"Fashion reviews", word1:"fashion", word2:"reviews", answer:"cashews", tri1:"ash", tri2:"ews" },
+  { clue:"Cheeky bishop!", word1:"cheeky", word2:"bishop", answer:"cherish", tri1:"che", tri2:"ish" },
+  { clue:"Stupid gossip", word1:"stupid", word2:"gossip", answer:"insipid", tri1:"pid", tri2:"sip" },
+  { clue:"Married nudist", word1:"married", word2:"nudist", answer:"studied", tri1:"ied", tri2:"udi" },
+  { clue:"Koalas launch!", word1:"koalas", word2:"launch", answer:"unclasp", tri1:"las", tri2:"unc" },
+  { clue:"Casual remarks", word1:"casual", word2:"remarks", answer:"maracas", tri1:"cas", tri2:"mar" },
+  { clue:"Junior minds", word1:"junior", word2:"minds", answer:"minions", tri1:"nio", tri2:"min" },
+  { clue:"Church garden", word1:"church", word2:"garden", answer:"orchard", tri1:"rch", tri2:"ard" },
+  { clue:"Action heroes", word1:"action", word2:"heroes", answer:"erosion", tri1:"ion", tri2:"ero" },
+  { clue:"Library trolley", word1:"library", word2:"trolley", answer:"braille", tri1:"bra", tri2:"lle" },
+  { clue:"Savage queens", word1:"savage", word2:"queens", answer:"teenage", tri1:"age", tri2:"een" },
+  { clue:"Pursue beauty", word1:"pursue", word2:"beauty", answer:"auteurs", tri1:"urs", tri2:"aut" },
+  { clue:"Cookies aplenty!", word1:"cookies", word2:"aplenty", answer:"entries", tri1:"ies", tri2:"ent" },
+  { clue:"Beyond cryptic", word1:"beyond", word2:"cryptic", answer:"cryonic", tri1:"yon", tri2:"cry" },
+  { clue:"Coffee breath", word1:"coffee", word2:"breath", answer:"offbeat", tri1:"off", tri2:"eat" },
+  { clue:"Enjoyed several", word1:"enjoyed", word2:"several", answer:"overjoy", tri1:"joy", tri2:"ver" },
+  { clue:"Incense factory", word1:"incense", word2:"factory", answer:"sensory", tri1:"ens", tri2:"ory" },
+  { clue:"Bikini weather!", word1:"bikini", word2:"weather", answer:"gherkin", tri1:"kin", tri2:"her" },
+  { clue:"Chronic outrage", word1:"chronic", word2:"outrage", answer:"neutron", tri1:"ron", tri2:"utr" },
+  { clue:"Thorny upstart", word1:"thorny", word2:"upstart", answer:"warthog", tri1:"tho", tri2:"art" },
+  { clue:"Annual bonuses", word1:"annual", word2:"bonuses", answer:"unusual", tri1:"ual", tri2:"nus" },
+  { clue:"Glitchy engine", word1:"glitchy", word2:"engine", answer:"english", tri1:"gli", tri2:"eng" },
+  { clue:"Inane hiccup?", word1:"inane", word2:"hiccup", answer:"chicane", tri1:"ane", tri2:"hic" },
+  { clue:"Cricket legend", word1:"cricket", word2:"legend", answer:"generic", tri1:"ric", tri2:"gen" },
+  
+
 ];
 
 const TR = 3;
@@ -4810,8 +4806,6 @@ function renderGrid(stealFocus=true){
   const n = getN();
   const f = flags();
   const revealed = state.finished;
-  const ghost4 = ((current().answer || "")[3] || "").toLowerCase();
-
 
   if(!revealed && f.allowAutoPromote){
     for(let k=0;k<2;k++){
@@ -4864,8 +4858,6 @@ function renderGrid(stealFocus=true){
     input.value = cellChar(i);
     input.name = "x-"+i;
     input.enterKeyHint = "done";
-    if(i === 3 && ghost4 && !input.value) input.placeholder = ghost4;
-
 
     const ro = (!!tri && f.allowAutoPromote) || revealed || state.useCustomKB;
     input.readOnly = ro;
