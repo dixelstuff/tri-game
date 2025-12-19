@@ -2312,6 +2312,23 @@ function checkResetParam(){
     // swallow errors – better to fail silently than break init()
   }
 }
+function checkWelcomeParam(){
+  try{
+    const url = new URL(window.location.href);
+    if(!url.searchParams.has("welcome")) return false;
+
+    // Remove the "welcome" param from the URL so refreshes don't re-trigger it
+    url.searchParams.delete("welcome");
+    const newSearch = url.searchParams.toString();
+    const newUrl = url.pathname + (newSearch ? `?${newSearch}` : "") + url.hash;
+
+    window.history.replaceState({}, document.title, newUrl);
+    return true;
+  }catch(e){
+    // swallow errors – better to fail silently than break init()
+    return false;
+  }
+}
 
 function renderStatsView(){
   if (!el.statsBody) return;
@@ -5340,6 +5357,7 @@ window.addEventListener('resize', ()=>{
 /* init */
 function init(){
   checkResetParam();
+  const showWelcome = checkWelcomeParam();
 
   state.i = firstUnplayedPuzzleIndex();
   updateModePill();
@@ -5354,7 +5372,10 @@ function init(){
   }
 
   renderSmart();
+
+  if(showWelcome) openHelp();
 }
+
 
 
 init();
