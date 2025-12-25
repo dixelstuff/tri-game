@@ -5185,14 +5185,15 @@ if(el.nextPuzzleBtn){
     e.preventDefault();
     if(!state.finished) return;
 
-    const target = nextIncompletePuzzleIndex(state.i);
-    if(target < 0) return;
-
     clearTransientOnAnyChange();
     closeModal();
 
     // save progress for the puzzle we’re leaving (also clears progress if finished)
     saveInProgressForCurrentPuzzle();
+
+    // FIRST incomplete puzzle (scan from start)
+    const target = nextIncompletePuzzleIndex(-1);
+    if(target < 0 || target === state.i) return;
 
     state.i = target;
     resetAllForPuzzle();
@@ -5204,6 +5205,7 @@ if(el.nextPuzzleBtn){
     renderSmart();
   });
 }
+
 
 
 // Stats button wiring
@@ -5326,14 +5328,15 @@ function updateNavButtons(){
   // next is allowed within the window, regardless of finished-state
   setNavDisabled(el.nextBtn, nextDisabled);
 
-  // big solved-state button goes to "next incomplete", so its disabled-state is different
+  // big solved-state button goes to the FIRST incomplete puzzle, so its disabled-state is different
   if(el.nextPuzzleBtn){
-    const nextInc = nextIncompletePuzzleIndex(state.i);
-    const bigDisabled = (!state.finished || nextInc < 0);
+    const firstInc = nextIncompletePuzzleIndex(-1);
+    const bigDisabled = (!state.finished || firstInc < 0 || firstInc === state.i);
 
     el.nextPuzzleBtn.disabled = bigDisabled;
     el.nextPuzzleBtn.setAttribute('aria-disabled', bigDisabled ? 'true' : 'false');
   }
+
 }
 
 
