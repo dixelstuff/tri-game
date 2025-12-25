@@ -5157,8 +5157,11 @@ el.prevBtn.addEventListener('click', (e)=>{
 
 el.nextBtn.addEventListener('click', (e)=>{
   e.preventDefault();
-  if(!state.finished) return;
-  if(state.i >= PUZZLES.length - 1) return;
+
+  // Allow top-nav browsing up to 4 puzzles beyond the FIRST incomplete puzzle (inclusive)
+  const firstInc = firstUnplayedPuzzleIndex();
+  const navMax   = Math.min(PUZZLES.length - 1, firstInc + 4);
+  if(state.i >= navMax) return;
 
   clearTransientOnAnyChange();
   closeModal();
@@ -5175,6 +5178,7 @@ el.nextBtn.addEventListener('click', (e)=>{
   }
   renderSmart();
 });
+
 
 if(el.nextPuzzleBtn){
   el.nextPuzzleBtn.addEventListener('click', (e)=>{
@@ -5308,14 +5312,18 @@ document.addEventListener('keydown', (e)=>{
 
 function updateNavButtons(){
   const atFirst = (state.i <= 0);
-  const atLast  = (state.i >= PUZZLES.length - 1);
 
-  const nextDisabled = (atLast || !state.finished);
+  // Allow top-nav browsing up to 4 puzzles beyond the FIRST incomplete puzzle (inclusive)
+  const firstInc = firstUnplayedPuzzleIndex();
+  const navMax   = Math.min(PUZZLES.length - 1, firstInc + 4);
+
+  // Next is disabled only when we hit that nav window limit (or the true last puzzle)
+  const nextDisabled = (state.i >= navMax);
 
   // prev never loops
   setNavDisabled(el.prevBtn, atFirst);
 
-  // next is blocked until finished, and never loops past last
+  // next is allowed within the window, regardless of finished-state
   setNavDisabled(el.nextBtn, nextDisabled);
 
   // big solved-state button goes to "next incomplete", so its disabled-state is different
@@ -5327,6 +5335,7 @@ function updateNavButtons(){
     el.nextPuzzleBtn.setAttribute('aria-disabled', bigDisabled ? 'true' : 'false');
   }
 }
+
 
 
 function render(stealFocus=true){
