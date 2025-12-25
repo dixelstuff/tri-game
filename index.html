@@ -5185,7 +5185,7 @@ if(el.nextPuzzleBtn){
     e.preventDefault();
     if(!state.finished) return;
 
-    const target = nextIncompletePuzzleIndex(-1);  // first incomplete (or -1 if none)
+    const target = nextIncompletePuzzleIndex(state.i);
     if(target < 0) return;
 
     clearTransientOnAnyChange();
@@ -5328,6 +5328,8 @@ function updateNavButtons(){
 
   // big solved-state button goes to "next incomplete", so its disabled-state is different
   if(el.nextPuzzleBtn){
+    const nextInc = nextIncompletePuzzleIndex(state.i);
+    const bigDisabled = (!state.finished || nextInc < 0);
 
     el.nextPuzzleBtn.disabled = bigDisabled;
     el.nextPuzzleBtn.setAttribute('aria-disabled', bigDisabled ? 'true' : 'false');
